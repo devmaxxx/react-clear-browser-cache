@@ -1,31 +1,29 @@
-import * as React from 'react';
+import React from 'react';
 
-interface Props {}
+type Props = {};
 
-interface State {
+type State = {
   hasError: boolean;
-}
+};
 
 // const chunkFailedMessage = /Loading chunk [\d]+ failed/;
 
+const errorNames = ['ChunkLoadError', 'SyntaxError'];
+
 export class ClearBrowserCache extends React.Component<Props, State> {
-  state = { hasError: true };
-
-  static getDerivedStateFromError(error: Error) {
-    console.error('getDerivedStateFromError');
-
-    return { hasError: true };
-  }
+  state = { hasError: false };
 
   componentDidCatch(error: Error, errorInfo) {
-    console.error('componentDidCatch');
-    // Можно также сохранить информацию об ошибке в соответствующую службу журнала ошибок
-    // logErrorToMyService(error, errorInfo);
+    if (errorNames.includes(error.name)) {
+      this.setState({ hasError: true });
+    } else {
+      throw error;
+    }
   }
 
   render() {
     if (this.state.hasError) {
-      return <h1>Error</h1>;
+      return null;
     }
 
     return this.props.children;
