@@ -14,7 +14,6 @@ export type DefaultProps = {
 };
 
 export type State = {
-  hasError: boolean;
   loading: boolean;
   isLatestVersion: boolean;
   appVersion: string;
@@ -36,13 +35,13 @@ const STORAGE_KEY = 'APP_VERSION';
 
 const defaultProps = {
   duration: 0,
-  auto: false,
+  auto: true,
   storageKey: STORAGE_KEY,
   basePath: '',
   filename: 'meta.json',
   storage: {
-    get: window.localStorage.getItem,
-    set: window.localStorage.setItem
+    get: localStorage.getItem.bind(localStorage),
+    set: localStorage.setItem.bind(localStorage)
   }
 };
 
@@ -70,17 +69,21 @@ export class ClearBrowserCacheProvider extends React.Component<
     const appVersion = this.getAppVersion() || '';
 
     this.state = {
-      hasError: false,
       loading: true,
-      isLatestVersion: true,
-      appVersion,
+      isLatestVersion: false,
+      appVersion: appVersion,
       latestVersion: appVersion
     };
   }
 
+  componentDidMount() {
+    this.checkVersionAndUpdate();
+  }
+
   componentDidCatch(error: Error) {
     if (errorNames.includes(error.name)) {
-      this.setState({ hasError: true });
+      this.setState({ loading: true });
+      this.checkVersionAndUpdate();
     } else {
       throw error;
     }
@@ -99,63 +102,78 @@ export class ClearBrowserCacheProvider extends React.Component<
   };
 
   fetchMeta = async () => {
-    const { auto } = this.props;
-    const { appVersion } = this.state;
+    const { filename } = this.props;
 
-    try {
-      const baseUrl = `/meta.json?time=${Date.now()}`;
-      const meta = await fetch(baseUrl).then((r) => r.json());
+    const baseUrl = `/${filename}?time=${Date.now()}`;
+    const meta = await fetch(baseUrl).then((r) => r.json());
 
-      const newVersion = meta.version;
-      const currentVersion = appVersion;
-      const isUpdated = newVersion === currentVersion;
-
-      if (!isUpdated && !auto) {
-        this.setState({
-          latestVersion: newVersion,
-          loading: false,
-          isLatestVersion: !appVersion ? false : true
-        });
-
-        if (appVersion) {
-          this.setAppVersion(newVersion);
-        }
-      } else if (!isUpdated && auto) {
-        this.clearCache(newVersion);
-      } else {
-        this.setState({
-          loading: false,
-          isLatestVersion: false
-        });
-      }
-    } catch (error) {
-      console.error(error);
-    }
+    return meta;
   };
 
-  clearCache = async (version?: string) => {
-    const {} = this.state;
+  clearCacheAndReload = async (version?: string) => {
+    const { latestVersion } = this.state;
 
     if ('caches' in window) {
       const cacheKeys = await window.caches.keys();
       await Promise.all(cacheKeys.map((key) => window.caches.delete(key)));
     }
 
-    this.setAppVersion(version || this.state.latestVersion);
+    this.setAppVersion(version || latestVersion);
     window.location.reload(true);
+  };
+
+  checkVersionAndUpdate = async () => {
+    const { auto } = this.props;
+    const { appVersion } = this.state;
+
+    try {
+      const meta = await this.fetchMeta();
+
+      const newVersion = meta.version;
+      const isUpdated = newVersion === appVersion;
+
+      if (!isUpdated && !auto) {
+        this.setState({
+          latestVersion: newVersion,
+          loading: false,
+          isLatestVersion: !appVersion
+        });
+
+        if (appVersion) {
+          this.setAppVersion(newVersion);
+        }
+      } else if (!isUpdated && auto) {
+        this.clearCacheAndReload(newVersion);
+      } else {
+        this.clearCacheAndReload();
+
+        // this.setState({
+        //   loading: false,
+        //   isLatestVersion: false
+        // });
+      }
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   render() {
     const { children, fallback } = this.props;
-    const { hasError, loading, isLatestVersion } = this.state;
+    const { loading, isLatestVersion } = this.state;
 
-    if (hasError || loading) {
+    if (loading) {
       return fallback;
     }
 
+    console.log(this.state);
+
     return (
       <ClearBrowserCacheCtx.Provider
-        value={{ loading, isLatestVersion, clearCache: this.clearCache }}
+        value={{
+          loading,
+          isLatestVersion,
+          clearCache: this.clearCacheAndReload
+        }}
       >
         {children}
       </ClearBrowserCacheCtx.Provider>
