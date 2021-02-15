@@ -30,7 +30,31 @@ type ClearBrowserCacheProps = {
   children: (value: CtxValue) => any;
 };
 
-const errorNames = ['ChunkLoadError', 'SyntaxError'];
+type ErrorMap = {
+  name: string;
+  checkMessage: (message?: any) => boolean;
+};
+
+function checkMessageWithRegex(regex: RegExp) {
+  return function (message?: string) {
+    return Boolean(message?.toString().match(regex));
+  };
+}
+
+const chunkFailedMessageRegex = /Loading chunk [\d]+ failed/;
+const syntaxErrorMessageRegex = /['"\s]<['"\s]/;
+
+const errors: ErrorMap[] = [
+  {
+    name: 'ChunkLoadError',
+    checkMessage: checkMessageWithRegex(chunkFailedMessageRegex)
+  },
+  {
+    name: 'SyntaxError',
+    checkMessage: checkMessageWithRegex(syntaxErrorMessageRegex)
+  }
+];
+
 const STORAGE_KEY = 'APP_VERSION';
 
 const defaultProps = {
@@ -81,7 +105,12 @@ export class ClearBrowserCacheProvider extends React.Component<
   }
 
   componentDidCatch(error: Error) {
-    if (errorNames.includes(error.name)) {
+    const isNecessaryError = errors.find(
+      ({ name, checkMessage }) =>
+        name === error.name && checkMessage(error.message)
+    );
+
+    if (isNecessaryError) {
       this.setState({ loading: true });
       this.checkVersionAndUpdate();
     } else {
@@ -132,25 +161,25 @@ export class ClearBrowserCacheProvider extends React.Component<
       const newVersion = meta.version;
       const isUpdated = newVersion === appVersion;
 
-      if (!isUpdated && !auto) {
-        this.setState({
-          latestVersion: newVersion,
-          loading: false,
-          isLatestVersion: !appVersion
-        });
+      if (!isUpdated) {
+        if (auto) {
+          this.clearCacheAndReload(newVersion);
+        } else {
+          this.setState({
+            latestVersion: newVersion,
+            loading: false,
+            isLatestVersion: !appVersion
+          });
 
-        if (appVersion) {
-          this.setAppVersion(newVersion);
+          if (appVersion) {
+            this.setAppVersion(newVersion);
+          }
         }
-      } else if (!isUpdated && auto) {
-        this.clearCacheAndReload(newVersion);
       } else {
-        this.clearCacheAndReload();
-
-        // this.setState({
-        //   loading: false,
-        //   isLatestVersion: false
-        // });
+        this.setState({
+          loading: false,
+          isLatestVersion: true
+        });
       }
     } catch (error) {
       console.log(error);
