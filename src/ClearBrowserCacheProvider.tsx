@@ -8,7 +8,7 @@ export type DefaultProps = {
   filename: string;
   storage: {
     get: (key: string) => string | null;
-    set: (version: string, value: string) => void;
+    set: (key: string, value: string) => void;
   };
   fallback: any;
 };
@@ -16,6 +16,7 @@ export type DefaultProps = {
 export type State = {
   loading: boolean;
   isLatestVersion: boolean;
+  hasError: boolean;
   appVersion: string;
   latestVersion: string;
 };
@@ -87,6 +88,8 @@ export class ClearBrowserCacheProvider extends React.Component<
 > {
   static defaultProps = defaultProps;
 
+  checkInterval: null | NodeJS.Timeout = null;
+
   constructor(props) {
     super(props);
 
@@ -94,29 +97,72 @@ export class ClearBrowserCacheProvider extends React.Component<
 
     this.state = {
       loading: true,
-      isLatestVersion: false,
+      hasError: false,
+      isLatestVersion: true,
       appVersion: appVersion,
       latestVersion: appVersion
     };
   }
 
   componentDidMount() {
-    this.checkVersionAndUpdate();
+    this.checkVersion();
+
+    window.addEventListener('focus', this.startVersionCheck);
+    window.addEventListener('blur', this.stopVersionCheck);
+  }
+
+  componentDidUpdate(_, prevState) {
+    if (this.state.loading !== prevState.loading) {
+      this.stopVersionCheck();
+
+      if (!this.state.loading) {
+        this.startVersionCheck();
+      }
+    }
+
+    if (this.state.hasError) {
+      this.stopVersionCheck();
+    }
+  }
+
+  componentWillUnmount() {
+    this.stopVersionCheck();
+
+    window.removeEventListener('focus', this.startVersionCheck);
+    window.removeEventListener('blur', this.stopVersionCheck);
   }
 
   componentDidCatch(error: Error) {
-    const isNecessaryError = errors.find(
+    const { hasError } = this.state;
+
+    const needCheckVersion = errors.find(
       ({ name, checkMessage }) =>
         name === error.name && checkMessage(error.message)
     );
 
-    if (isNecessaryError) {
+    if (needCheckVersion && !hasError) {
       this.setState({ loading: true });
-      this.checkVersionAndUpdate();
+      this.checkVersion(true).then((isNotCacheError) => {
+        if (isNotCacheError) throw error;
+      });
     } else {
       throw error;
     }
   }
+
+  startVersionCheck = () => {
+    const { duration } = this.props;
+
+    if (duration) {
+      this.checkInterval = setInterval(this.checkVersion, duration);
+    }
+  };
+
+  stopVersionCheck = () => {
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+    }
+  };
 
   getAppVersion = () => {
     const { storage, storageKey } = this.props;
@@ -148,12 +194,14 @@ export class ClearBrowserCacheProvider extends React.Component<
     }
 
     this.setAppVersion(version || latestVersion);
-    window.location.reload(true);
+    // window.location.reload(true);
   };
 
-  checkVersionAndUpdate = async () => {
+  checkVersion = async (error?: boolean) => {
     const { auto } = this.props;
     const { appVersion } = this.state;
+
+    let isNotCacheError = false;
 
     try {
       const meta = await this.fetchMeta();
@@ -171,19 +219,26 @@ export class ClearBrowserCacheProvider extends React.Component<
             isLatestVersion: !appVersion
           });
 
-          if (appVersion) {
+          if (!appVersion) {
             this.setAppVersion(newVersion);
           }
         }
       } else {
+        if (error) {
+          isNotCacheError = true;
+        }
+
         this.setState({
           loading: false,
-          isLatestVersion: true
+          isLatestVersion: true,
+          hasError: isNotCacheError
         });
       }
     } catch (error) {
       console.log(error);
     }
+
+    return isNotCacheError;
   };
 
   render() {

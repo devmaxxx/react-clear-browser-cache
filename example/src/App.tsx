@@ -9,12 +9,13 @@ class ChunkLoadError extends Error {
 }
 
 const App = () => {
-  React.useEffect(() => {
-    setTimeout(() => {
-      throw new ChunkLoadError('Error');
-    }, 3000);
-  }, []);
+  // React.useEffect(() => {
+  //   setTimeout(() => {
+  //     throw new ChunkLoadError('Loading chunk 1 failed');
+  //   }, 3000);
+  // }, []);
 
+  throw new ChunkLoadError('Loading chunk 1 failed');
   // React.useEffect(() => {
   //   setTimeout(() => {
   //     throw new SyntaxError('Error');
