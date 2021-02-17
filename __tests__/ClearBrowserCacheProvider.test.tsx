@@ -1,4 +1,4 @@
-import ClearBrowserCacheProvider from '../ClearBrowserCacheProvider';
+import ClearBrowserCacheProvider from '../src/ClearBrowserCacheBoundary';
 
 const doImport = () => Promise.reject(new Error(''));
 

@@ -15,7 +15,7 @@ const App = () => {
   //   }, 3000);
   // }, []);
 
-  throw new ChunkLoadError('Loading chunk 1 failed');
+  // throw new ChunkLoadError('Loading chunk 1 failed');
   // React.useEffect(() => {
   //   setTimeout(() => {
   //     throw new SyntaxError('Error');

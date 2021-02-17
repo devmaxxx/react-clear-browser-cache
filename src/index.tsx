@@ -1,2 +1,2 @@
-export * from './ClearBrowserCacheProvider';
-export { retry } from './retry';
+export * from './ClearBrowserCacheBoundary';
+export * from './retry';

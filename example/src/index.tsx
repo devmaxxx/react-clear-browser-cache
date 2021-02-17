@@ -2,12 +2,16 @@ import './index.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { ClearBrowserCacheProvider } from 'react-clear-browser-cache';
+import { ClearBrowserCacheBoundary } from 'react-clear-browser-cache';
 import App from './App';
 
 ReactDOM.render(
-  <ClearBrowserCacheProvider fallback='Loading' duration={4000}>
+  <ClearBrowserCacheBoundary
+    fallback='Loading'
+    duration={4000}
+    debug={(state: any) => console.log('state', state)}
+  >
     <App />
-  </ClearBrowserCacheProvider>,
+  </ClearBrowserCacheBoundary>,
   document.getElementById('root')
 );

@@ -1,19 +1,6 @@
 import React from 'react';
 
-export type DefaultProps = {
-  duration: number;
-  auto: boolean;
-  storageKey: string;
-  basePath: string;
-  filename: string;
-  storage: {
-    get: (key: string) => string | null;
-    set: (key: string, value: string) => void;
-  };
-  fallback: any;
-};
-
-export type State = {
+type State = {
   loading: boolean;
   isLatestVersion: boolean;
   hasError: boolean;
@@ -21,7 +8,20 @@ export type State = {
   latestVersion: string;
 };
 
-export type CtxValue = {
+type Props = {
+  duration: number;
+  auto: boolean;
+  storageKey: string;
+  filename: string;
+  storage: {
+    get: (key: string) => string | null;
+    set: (key: string, value: string) => void;
+  };
+  fallback: any;
+  debug: (state: State) => void;
+};
+
+type CtxValue = {
   loading: boolean;
   isLatestVersion: boolean;
   clearCache: () => void;
@@ -59,15 +59,15 @@ const errors: ErrorMap[] = [
 const STORAGE_KEY = 'APP_VERSION';
 
 const defaultProps = {
-  duration: 0,
-  auto: true,
+  duration: 5 * 60 * 1000,
+  auto: false,
   storageKey: STORAGE_KEY,
-  basePath: '',
   filename: 'meta.json',
   storage: {
     get: localStorage.getItem.bind(localStorage),
     set: localStorage.setItem.bind(localStorage)
-  }
+  },
+  debug: () => {}
 };
 
 const ClearBrowserCacheCtx = React.createContext<CtxValue>({} as CtxValue);
@@ -82,8 +82,8 @@ export function ClearBrowserCache({ children }: ClearBrowserCacheProps) {
   return children(ctx);
 }
 
-export class ClearBrowserCacheProvider extends React.Component<
-  React.PropsWithChildren<DefaultProps>,
+export class ClearBrowserCacheBoundary extends React.Component<
+  React.PropsWithChildren<Props>,
   State
 > {
   static defaultProps = defaultProps;
@@ -105,7 +105,7 @@ export class ClearBrowserCacheProvider extends React.Component<
   }
 
   componentDidMount() {
-    this.checkVersion();
+    this.checkVersion(true);
 
     window.addEventListener('focus', this.startVersionCheck);
     window.addEventListener('blur', this.stopVersionCheck);
@@ -122,6 +122,10 @@ export class ClearBrowserCacheProvider extends React.Component<
 
     if (this.state.hasError) {
       this.stopVersionCheck();
+    }
+
+    if (this.props.debug) {
+      this.props.debug(this.state);
     }
   }
 
@@ -142,7 +146,7 @@ export class ClearBrowserCacheProvider extends React.Component<
 
     if (needCheckVersion && !hasError) {
       this.setState({ loading: true });
-      this.checkVersion(true).then((isNotCacheError) => {
+      this.checkVersion(true, true).then((isNotCacheError) => {
         if (isNotCacheError) throw error;
       });
     } else {
@@ -151,16 +155,17 @@ export class ClearBrowserCacheProvider extends React.Component<
   }
 
   startVersionCheck = () => {
-    const { duration } = this.props;
+    const { duration, auto } = this.props;
 
     if (duration) {
-      this.checkInterval = setInterval(this.checkVersion, duration);
+      this.checkInterval = setInterval(() => this.checkVersion(auto), duration);
     }
   };
 
   stopVersionCheck = () => {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
+      console.log(this.checkInterval);
     }
   };
 
@@ -194,14 +199,11 @@ export class ClearBrowserCacheProvider extends React.Component<
     }
 
     this.setAppVersion(version || latestVersion);
-    // window.location.reload(true);
+    window.location.reload(true);
   };
 
-  checkVersion = async (error?: boolean) => {
-    const { auto } = this.props;
+  checkVersion = async (auto: boolean = false, hasError: boolean = false) => {
     const { appVersion } = this.state;
-
-    let isNotCacheError = false;
 
     try {
       const meta = await this.fetchMeta();
@@ -224,21 +226,19 @@ export class ClearBrowserCacheProvider extends React.Component<
           }
         }
       } else {
-        if (error) {
-          isNotCacheError = true;
-        }
-
         this.setState({
           loading: false,
           isLatestVersion: true,
-          hasError: isNotCacheError
+          hasError
         });
+
+        return hasError;
       }
     } catch (error) {
       console.log(error);
     }
 
-    return isNotCacheError;
+    return false;
   };
 
   render() {
@@ -248,8 +248,6 @@ export class ClearBrowserCacheProvider extends React.Component<
     if (loading) {
       return fallback;
     }
-
-    console.log(this.state);
 
     return (
       <ClearBrowserCacheCtx.Provider
@@ -264,5 +262,3 @@ export class ClearBrowserCacheProvider extends React.Component<
     );
   }
 }
-
-export default ClearBrowserCacheProvider;
