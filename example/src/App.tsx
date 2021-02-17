@@ -1,6 +1,6 @@
 import React from 'react';
 
-// @ts-ignore
+//@ts-ignore
 class ChunkLoadError extends Error {
   constructor(props: any) {
     super(props);
@@ -9,18 +9,13 @@ class ChunkLoadError extends Error {
 }
 
 const App = () => {
-  // React.useEffect(() => {
-  //   setTimeout(() => {
-  //     throw new ChunkLoadError('Loading chunk 1 failed');
-  //   }, 3000);
-  // }, []);
+  React.useEffect(() => {
+    // throw new ChunkLoadError('Loading chunk 1 failed');
+  }, []);
 
-  // throw new ChunkLoadError('Loading chunk 1 failed');
-  // React.useEffect(() => {
-  //   setTimeout(() => {
-  //     throw new SyntaxError('Error');
-  //   }, 3000);
-  // }, []);
+  React.useEffect(() => {
+    // throw new SyntaxError("' < '");
+  }, []);
 
   return <div>App</div>;
 };

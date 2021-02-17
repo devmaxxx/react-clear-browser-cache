@@ -1,2 +1,2 @@
 export * from './ClearBrowserCacheBoundary';
-export * from './retry';
+export * from './lazyRetry';

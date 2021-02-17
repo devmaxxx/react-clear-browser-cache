@@ -6,7 +6,7 @@
   "repository": "arenuzzz/react-clear-browser-cache",
   "main": "dist/index.js",
   "module": "dist/index.modern.js",
-  "source": "src/index.tsx",
+  "source": "src/index.ts",
   "bin": {
     "generate-build-meta": "./bin/cli.js"
   },
