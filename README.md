@@ -24,13 +24,11 @@ import ErrorBoundary from './ErrorBoundary';
 
 class Example extends Component {
   render() {
+    const duration = 5 * 60 * 1000;
+
     return (
       <ErrorBoundary>
-        <ClearBrowserCacheBoundary
-          fallback='Loading'
-          auto
-          duration={5 * 60 * 1000}
-        >
+        <ClearBrowserCacheBoundary auto fallback='Loading' duration={duration}>
           <App />
         </ClearBrowserCacheBoundary>
       </ErrorBoundary>
