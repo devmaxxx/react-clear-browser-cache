@@ -4,33 +4,41 @@ type History = {
   listen: (listener: Function) => Function;
 };
 
-type Storage = {
+export type ClearBrowserCacheStorage = {
   get: (key: string) => string | null;
   set: (key: string, value: string) => void;
 };
 
-type DebugFunc = (params: { state: State; error?: Error }) => void;
+export type ClearBrowserCacheDebugFunc = (params: {
+  state: ClearBrowserCacheBoundaryState;
+  error?: Error;
+}) => void;
 
-type AppVersion = {
+export type ClearBrowserCacheAppVersion = {
   get: () => string | null;
   set: (version: string) => void;
 };
 
-type State = {
+export type ClearBrowserCacheErrorMap = {
+  name: string;
+  checkMessage: (message?: any) => boolean;
+};
+
+export type ClearBrowserCacheBoundaryState = {
   loading: boolean;
   isLatestVersion: boolean;
   hasError: boolean;
   latestVersion: string;
 };
 
-type Props = {
+export type ClearBrowserCacheBoundaryProps = {
   auto: boolean;
   storageKey: string;
   filename: string;
   storage: Storage;
   duration?: number;
   fallback?: any;
-  debug?: DebugFunc;
+  debug?: ClearBrowserCacheDebugFunc;
   history?: History;
 };
 
@@ -45,11 +53,6 @@ type ClearBrowserCacheProps = {
   children: (value: CtxValue) => any;
 };
 
-type ErrorMap = {
-  name: string;
-  checkMessage: (message?: any) => boolean;
-};
-
 function checkMessageWithRegex(regex: RegExp) {
   return function (message?: string) {
     return Boolean(message?.toString().match(regex));
@@ -59,7 +62,7 @@ function checkMessageWithRegex(regex: RegExp) {
 const chunkFailedMessageRegex = /Loading chunk [\d]+ failed/;
 const syntaxErrorMessageRegex = /['"\s]<['"\s]/;
 
-const errors: ErrorMap[] = [
+const errors: ClearBrowserCacheErrorMap[] = [
   {
     name: 'ChunkLoadError',
     checkMessage: checkMessageWithRegex(chunkFailedMessageRegex)
@@ -95,12 +98,12 @@ export function ClearBrowserCache({ children }: ClearBrowserCacheProps) {
 }
 
 export class ClearBrowserCacheBoundary extends React.Component<
-  React.PropsWithChildren<Props>,
-  State
+  React.PropsWithChildren<ClearBrowserCacheBoundaryProps>,
+  ClearBrowserCacheBoundaryState
 > {
   static defaultProps = defaultProps;
 
-  appVersion: AppVersion;
+  appVersion: ClearBrowserCacheAppVersion;
   checkInterval: null | NodeJS.Timeout = null;
   historyUnlisten: null | Function = null;
 

@@ -1,12 +1,5 @@
 import React from 'react';
-
-//@ts-ignore
-class ChunkLoadError extends Error {
-  constructor(props: any) {
-    super(props);
-    this.name = 'ChunkLoadError';
-  }
-}
+// import ChunkLoadError from './ChunkLoadError';
 
 const App = () => {
   React.useEffect(() => {

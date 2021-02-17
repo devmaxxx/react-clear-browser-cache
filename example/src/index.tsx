@@ -1,8 +1,10 @@
-import './index.css';
-
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { ClearBrowserCacheBoundary } from 'react-clear-browser-cache';
+import ErrorBoundary from './ErrorBoundary';
+import {
+  ClearBrowserCacheBoundary,
+  ClearBrowserCacheDebugFunc
+} from 'react-clear-browser-cache';
 import App from './App';
 
 function formatData(data: any) {
@@ -15,17 +17,22 @@ function formatData(data: any) {
   );
 }
 
+const debug: ClearBrowserCacheDebugFunc = (data) => {
+  if (data.error) {
+    console.log(formatData(data));
+  }
+};
+
 ReactDOM.render(
-  <ClearBrowserCacheBoundary
-    fallback='Loading'
-    duration={4000}
-    debug={(data) => {
-      if (data.error) {
-        console.log(formatData(data));
-      }
-    }}
-  >
-    <App />
-  </ClearBrowserCacheBoundary>,
+  <ErrorBoundary>
+    <ClearBrowserCacheBoundary
+      fallback='Loading'
+      auto
+      duration={5 * 60 * 1000}
+      debug={debug}
+    >
+      <App />
+    </ClearBrowserCacheBoundary>
+  </ErrorBoundary>,
   document.getElementById('root')
 );
