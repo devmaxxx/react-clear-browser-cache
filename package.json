@@ -1,7 +1,8 @@
 {
   "name": "react-clear-browser-cache",
-  "version": "0.0.1-beta.2",
+  "version": "0.0.1-beta.3",
   "author": "arenuzzz",
+  "description": "Library for clearing browser cache after react app updates",
   "license": "MIT",
   "repository": "arenuzzz/react-clear-browser-cache",
   "main": "dist/index.js",
@@ -17,6 +18,13 @@
   "engines": {
     "node": ">=10"
   },
+  "keywords": [
+    "cache",
+    "browser cache",
+    "clear cache",
+    "refresh cache",
+    "react"
+  ],
   "scripts": {
     "build": "microbundle-crl --no-compress --format modern,cjs",
     "start": "microbundle-crl watch --no-compress --format modern,cjs",
@@ -62,5 +70,9 @@
     "react-dom": "^16.13.1",
     "react-scripts": "^3.4.1",
     "typescript": "^3.7.5"
+  },
+  "dependencies": {
+    "minimist": "^1.2.5",
+    "uuid": "^8.3.2"
   }
 }
