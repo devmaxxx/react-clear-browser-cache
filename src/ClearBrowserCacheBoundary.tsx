@@ -237,7 +237,6 @@ export class ClearBrowserCacheBoundary extends React.Component<
   checkVersion = async (auto: boolean = false, hasError: boolean = false) => {
     try {
       const appVersion = this.appVersion.get();
-
       const meta = await this.fetchMeta();
 
       const newVersion = meta.version;
@@ -245,7 +244,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
 
       if (!isUpdated) {
         if (auto) {
-          this.clearCacheAndReload();
+          this.clearCacheAndReload(newVersion);
         } else {
           this.setState({
             latestVersion: newVersion,
