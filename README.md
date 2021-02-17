@@ -15,24 +15,26 @@ yarn add react-clear-browser-cache
 ## Usage
 
 ```tsx
-import React, { Component } from 'react'
+import React, { Component } from 'react';
 
-import MyComponent from 'react-clear-browser-cache'
+import { ClearBrowserCacheBoundary } from 'react-clear-browser-cache';
+
+import App from './App';
+import ErrorBoundary from './ErrorBoundary';
 
 class Example extends Component {
   render() {
     return (
-    <ErrorBoundary>
+      <ErrorBoundary>
         <ClearBrowserCacheBoundary
           fallback='Loading'
           auto
           duration={5 * 60 * 1000}
-          debug={debug}
         >
           <App />
         </ClearBrowserCacheBoundary>
-    </ErrorBoundary>
-    )
+      </ErrorBoundary>
+    );
   }
 }
 ```
