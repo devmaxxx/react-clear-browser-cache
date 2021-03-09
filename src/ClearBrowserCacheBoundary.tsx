@@ -46,7 +46,7 @@ type ClearBrowserCacheProps = {
 export function createErrorChecker(name: string, regexpForMesssage: RegExp) {
   return function (error: Error): boolean {
     return (
-      error.name === name && Boolean(error.message.match(regexpForMesssage))
+      error.name === name && Boolean(regexpForMesssage.exec(error.message))
     );
   };
 }
