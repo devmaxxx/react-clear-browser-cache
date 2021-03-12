@@ -13,6 +13,7 @@ export type ClearBrowserCacheAppVersionStorage = {
 export type ClearBrowserCacheDebugFunc = (params: {
   state?: ClearBrowserCacheBoundaryState;
   error?: Error;
+  errorInfo?: any;
 }) => void;
 
 export type ClearBrowserCacheErrorChecker = (error: Error) => boolean;
@@ -20,7 +21,6 @@ export type ClearBrowserCacheErrorChecker = (error: Error) => boolean;
 export type ClearBrowserCacheBoundaryState = {
   loading: boolean;
   isLatestVersion: boolean;
-  hasExternalError: boolean;
   latestVersion: string;
 };
 
@@ -42,6 +42,14 @@ type CtxValue = ClearBrowserCacheBoundaryState & {
 type ClearBrowserCacheProps = {
   children: (value: CtxValue) => any;
 };
+
+class ClearBrowserCacheError extends Error {
+  constructor(error) {
+    super(error);
+    this.name = error.name;
+    this.message = error.message;
+  }
+}
 
 export function createErrorChecker(name: string, regexpForMesssage: RegExp) {
   return function (error: Error): boolean {
@@ -130,7 +138,6 @@ export class ClearBrowserCacheBoundary extends React.Component<
     this.state = {
       loading: true,
       latestVersion,
-      hasExternalError: false,
       isLatestVersion: true
     };
   }
@@ -145,12 +152,12 @@ export class ClearBrowserCacheBoundary extends React.Component<
   }
 
   componentDidUpdate() {
-    const { loading, hasExternalError } = this.state;
+    const { loading } = this.state;
 
     this.stopVersionCheck();
     this.debug();
 
-    if (!(loading || hasExternalError)) {
+    if (!loading) {
       this.startVersionCheck();
     }
   }
@@ -162,32 +169,33 @@ export class ClearBrowserCacheBoundary extends React.Component<
     window.removeEventListener('blur', this.stopVersionCheck);
   }
 
-  componentDidCatch(error: Error) {
-    const { hasExternalError } = this.state;
+  componentDidCatch(error: Error, errorInfo: any) {
+    this.debug(error, errorInfo);
 
     const needCheckVersion = this.errorCheckers.some((checkError) =>
       checkError(error)
     );
 
-    if (needCheckVersion && !hasExternalError) {
-      this.setState({ loading: true });
-      this.checkVersion(true, false, true).then((isNotCacheError) => {
-        if (isNotCacheError) {
-          this.debug(error);
+    function throwError() {
+      throw new ClearBrowserCacheError(error);
+    }
 
-          throw error;
-        }
-      });
+    if (needCheckVersion) {
+      this.setState({ loading: true });
+
+      this.checkVersion(true, false, true).then(() =>
+        this.setState({}, throwError)
+      );
     } else {
-      throw error;
+      throwError();
     }
   }
 
-  debug = (error?: Error) => {
+  debug = (error?: Error, errorInfo?: any) => {
     const { debug } = this.props;
 
     if (debug?.call) {
-      debug({ state: this.state, error });
+      debug({ state: this.state, error, errorInfo });
     }
   };
 
@@ -254,25 +262,21 @@ export class ClearBrowserCacheBoundary extends React.Component<
 
           this.appVersionStorage.set(newVersion);
         }
-      } else if (!silent) {
+      } else if (!(silent || hasExternalError)) {
         this.setState({
           loading: false,
-          isLatestVersion: true,
-          hasExternalError
+          isLatestVersion: true
         });
-
-        return hasExternalError;
       }
     } catch (error) {
       this.debug(error);
 
       this.setState({
-        loading: false,
-        isLatestVersion: false
+        loading: false
       });
     }
 
-    return false;
+    return hasExternalError;
   };
 
   render() {
