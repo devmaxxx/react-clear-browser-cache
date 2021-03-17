@@ -6,7 +6,7 @@ export type ClearBrowserCacheStorage = {
 };
 
 export type ClearBrowserCacheAppVersionStorage = {
-  get: () => string | null;
+  get: () => string;
   set: (version: string) => void;
 };
 
@@ -22,6 +22,7 @@ export type ClearBrowserCacheBoundaryState = {
   loading: boolean;
   isLatestVersion: boolean;
   latestVersion: string;
+  disabled: boolean;
 };
 
 export type ClearBrowserCacheBoundaryProps = {
@@ -69,6 +70,8 @@ const defaultErrorCheckers: ClearBrowserCacheErrorChecker[] = [
 
 const storageKey = 'APP_VERSION';
 const filename = 'meta.json';
+const latestVersion = 'latest';
+const disabledVersion = 'disabled';
 
 const defaultProps = {
   errorCheckers: [],
@@ -99,10 +102,18 @@ function createStorage(
 ): ClearBrowserCacheAppVersionStorage {
   return {
     set(version) {
-      storage.set(storageKey, version);
+      try {
+        storage.set(storageKey, version);
+      } catch (error) {}
     },
     get() {
-      return storage.get(storageKey);
+      try {
+        return storage.get(storageKey) || latestVersion;
+      } catch (error) {
+        return disabledVersion;
+      }
+
+      return latestVersion;
     }
   };
 }
@@ -123,21 +134,12 @@ export class ClearBrowserCacheBoundary extends React.Component<
     this.errorCheckers = defaultErrorCheckers.concat(props.errorCheckers);
     this.appVersionStorage = createStorage(props.storageKey, props.storage);
 
-    let latestVersion = 'latest';
-
-    try {
-      const appVersion = this.appVersionStorage.get();
-
-      if (appVersion) {
-        latestVersion = appVersion;
-      }
-    } catch (error) {
-      this.debug(error);
-    }
+    const latestVersion = this.appVersionStorage.get();
 
     this.state = {
       loading: true,
       latestVersion,
+      disabled: latestVersion === disabledVersion,
       isLatestVersion: true
     };
   }
@@ -170,7 +172,11 @@ export class ClearBrowserCacheBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    this.debug(error, errorInfo);
+    const { loading } = this.state;
+
+    if (loading) {
+      return;
+    }
 
     const needCheckVersion = this.errorCheckers.some((checkError) =>
       checkError(error)
@@ -183,9 +189,11 @@ export class ClearBrowserCacheBoundary extends React.Component<
     if (needCheckVersion) {
       this.setState({ loading: true });
 
-      this.checkVersion(true, false, true).then(() =>
-        this.setState({}, throwError)
-      );
+      this.checkVersion(true, false).then(() => {
+        this.debug(error, errorInfo);
+
+        this.setState(throwError);
+      });
     } else {
       throwError();
     }
@@ -225,11 +233,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
     return meta;
   };
 
-  clearCacheAndReload = async (version?: string) => {
-    const { latestVersion } = this.state;
-
-    this.appVersionStorage.set(version || latestVersion);
-
+  clearCacheAndReload = async () => {
     if ('caches' in window) {
       const cacheKeys = await window.caches.keys();
       await Promise.all(cacheKeys.map((key) => window.caches.delete(key)));
@@ -238,11 +242,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
     window.location.reload(true);
   };
 
-  checkVersion = async (
-    auto: boolean = false,
-    silent: boolean = false,
-    hasExternalError: boolean = false
-  ) => {
+  checkVersion = async (auto: boolean = false, silent: boolean = false) => {
     try {
       const appVersion = this.state.latestVersion;
       const meta = await this.fetchMeta();
@@ -251,18 +251,18 @@ export class ClearBrowserCacheBoundary extends React.Component<
       const isUpdated = newVersion === appVersion;
 
       if (!isUpdated) {
+        this.appVersionStorage.set(newVersion);
+
         if (auto) {
-          await this.clearCacheAndReload(newVersion);
+          await this.clearCacheAndReload();
         } else {
           this.setState({
             latestVersion: newVersion,
             loading: false,
             isLatestVersion: false
           });
-
-          this.appVersionStorage.set(newVersion);
         }
-      } else if (!(silent || hasExternalError)) {
+      } else if (!silent) {
         this.setState({
           loading: false,
           isLatestVersion: true
@@ -275,8 +275,6 @@ export class ClearBrowserCacheBoundary extends React.Component<
         loading: false
       });
     }
-
-    return hasExternalError;
   };
 
   render() {
