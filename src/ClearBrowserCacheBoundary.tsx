@@ -233,11 +233,13 @@ export class ClearBrowserCacheBoundary extends React.Component<
     return meta;
   };
 
-  clearCacheAndReload = async () => {
+  clearCacheAndReload = async (newVersion?: string) => {
     if ('caches' in window) {
       const cacheKeys = await window.caches.keys();
       await Promise.all(cacheKeys.map((key) => window.caches.delete(key)));
     }
+
+    this.appVersionStorage.set(newVersion || this.state.latestVersion);
 
     window.location.reload(true);
   };
@@ -251,8 +253,6 @@ export class ClearBrowserCacheBoundary extends React.Component<
       const isUpdated = newVersion === appVersion;
 
       if (!isUpdated) {
-        this.appVersionStorage.set(newVersion);
-
         if (auto) {
           await this.clearCacheAndReload();
         } else {
@@ -262,6 +262,8 @@ export class ClearBrowserCacheBoundary extends React.Component<
             isLatestVersion: false
           });
         }
+
+        this.appVersionStorage.set(newVersion);
       } else if (!silent) {
         this.setState({
           loading: false,
