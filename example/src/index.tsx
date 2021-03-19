@@ -14,7 +14,7 @@ const debug: ClearBrowserCacheDebugFunc = (data) => {
 ReactDOM.render(
   <ErrorBoundary>
     <ClearBrowserCacheBoundary
-      fallback='Loading'
+      fallback='Loading...'
       auto
       duration={5000}
       // duration={5 * 60 * 1000}

@@ -12,7 +12,7 @@
     "noImplicitThis": true,
     "strictNullChecks": true,
     "suppressImplicitAnyIndexErrors": true,
-    "noUnusedLocals": true,
+    // "noUnusedLocals": true,
     "allowSyntheticDefaultImports": true,
     "target": "es5",
     "allowJs": true,
