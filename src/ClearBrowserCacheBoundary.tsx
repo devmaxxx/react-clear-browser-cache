@@ -31,7 +31,7 @@ export type ClearBrowserCacheBoundaryProps = {
   filename: string;
   storage: Storage;
   duration?: number;
-  fallback?: any;
+  fallback?: React.ReactNode;
   debug?: ClearBrowserCacheDebugFunc;
   errorCheckers?: ClearBrowserCacheErrorChecker[];
 };
@@ -66,6 +66,7 @@ const latestVersion = 'latest';
 const disabledVersion = 'disabled';
 
 const defaultProps = {
+  fallback: null,
   errorCheckers: [],
   auto: false,
   storageKey,

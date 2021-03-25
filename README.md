@@ -56,7 +56,7 @@ ReactDOM.render(
 | :------------ | :------- | :----------- | :---------------------------------------------------------------------------------------------------------------- |
 | duration      | number   |              | You can set the duration when to fetch for new updates.                                                           |
 | auto          | boolean  | false        | Set to true to auto-reload the page whenever an update is available.                                              |
-| fallback      | any      |              | You can set fallback data when fetching new version - preloader etc.                                              |
+| fallback      | any      | null         | You can set fallback data when fetching new version - preloader etc.                                              |
 | storageKey    | string   | APP_VERSION  | Storage key for saving app version.                                                                               |
 | storage       | object   | localStorage | You can use another storage to save and get the version of app like [store](https://www.npmjs.com/package/store). |
 | filename      | string   | meta.json    | Filename for fetching new app version.                                                                            |
