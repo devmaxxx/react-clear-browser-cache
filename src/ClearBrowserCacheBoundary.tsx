@@ -72,8 +72,12 @@ const defaultProps = {
   storageKey,
   filename,
   storage: {
-    get: localStorage.getItem.bind(localStorage),
-    set: localStorage.setItem.bind(localStorage)
+    get(...args) {
+      return window.localStorage.getItem.apply(window.localStorage, args);
+    },
+    set(...args) {
+      window.localStorage.setItem.apply(window.localStorage, args);
+    }
   }
 };
 
