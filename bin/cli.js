@@ -29,8 +29,8 @@ writeFile(destination, jsonContent, (err) => {
 });
 
 function writeFile(path, contents, cb) {
-  mkdirp(getDirName(path), (err) => {
-    if (err) return cb(err);
-    fs.writeFile(path, contents, cb);
+  mkdirp(getDirName(path)).catch((err) => {
+      if (err) return cb(err);
+      fs.writeFile(path, contents, cb);
   });
 }
