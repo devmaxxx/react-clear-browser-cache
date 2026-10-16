@@ -14,10 +14,7 @@ Users leave tabs open for days. After you deploy, those tabs still run the old b
 **[▶ Try the live demo](https://devmaxxx.github.io/react-clear-browser-cache/)** — deploy a new version in one click and watch an open tab notice it, prompt, clear Cache Storage and reload.
 
 <a href="https://devmaxxx.github.io/react-clear-browser-cache/">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/demo-dark.png" />
-    <img alt="The demo after a deploy: the update prompt asks to reload, the event log shows meta.json returning v2 while the tab still runs v1." src="docs/demo-light.png" width="800" />
-  </picture>
+  <img alt="The demo after a deploy: the update prompt asks to reload, the event log shows meta.json returning v2 while the tab still runs v1." src="docs/demo-light.png" width="800" />
 </a>
 
 ## Features
