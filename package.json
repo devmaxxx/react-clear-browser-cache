@@ -1,10 +1,10 @@
 {
   "name": "react-clear-browser-cache",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "author": "arenuzzz",
   "description": "Library for clearing browser cache after react app updates",
   "license": "MIT",
-  "repository": "arenuzzz/react-clear-browser-cache",
+  "repository": "devmaxxx/react-clear-browser-cache",
   "type": "commonjs",
   "sideEffects": false,
   "main": "./dist/index.cjs",
