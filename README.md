@@ -1,157 +1,139 @@
 # react-clear-browser-cache
 
-> Library for clearing browser cache after react app updates
+> Keep open tabs on your latest React build: notice a deploy, clear Cache Storage and reload, or ask the user first.
 
-[![NPM](https://img.shields.io/npm/v/react-clear-browser-cache.svg)](https://www.npmjs.com/package/react-clear-browser-cache) [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
+[![npm version](https://img.shields.io/npm/v/react-clear-browser-cache.svg)](https://www.npmjs.com/package/react-clear-browser-cache)
+[![npm downloads](https://img.shields.io/npm/dm/react-clear-browser-cache.svg)](https://www.npmjs.com/package/react-clear-browser-cache)
+[![CI](https://github.com/devmaxxx/react-clear-browser-cache/actions/workflows/ci.yml/badge.svg)](https://github.com/devmaxxx/react-clear-browser-cache/actions/workflows/ci.yml)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/react-clear-browser-cache.svg)](https://bundlephobia.com/package/react-clear-browser-cache)
+![types](https://img.shields.io/npm/types/react-clear-browser-cache.svg)
+[![license](https://img.shields.io/npm/l/react-clear-browser-cache.svg)](#license)
 
-**[Live demo](https://devmaxxx.github.io/react-clear-browser-cache/)**: deploy a new version in one click and watch an open tab notice it, prompt, clear Cache Storage and reload.
+Users leave tabs open for days. After you deploy, those tabs still run the old build, and the moment they open a lazy route its chunk is gone from the server: `ChunkLoadError`, a blank screen, a support ticket. This library notices the new build and gets the tab onto it.
+
+**[▶ Try the live demo](https://devmaxxx.github.io/react-clear-browser-cache/)** — deploy a new version in one click and watch an open tab notice it, prompt, clear Cache Storage and reload.
+
+<a href="https://devmaxxx.github.io/react-clear-browser-cache/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/demo-dark.png" />
+    <img alt="The demo after a deploy: the update prompt asks to reload, the event log shows meta.json returning v2 while the tab still runs v1." src="docs/demo-light.png" width="800" />
+  </picture>
+</a>
+
+## Features
+
+- **Detects new builds** by polling a tiny `meta.json` that a CLI writes at build time.
+- **Recovers from stale-chunk errors** — webpack and Vite chunk failures, native `import()` errors in Chrome, Firefox and Safari, and HTML served in place of a script — and passes every other error on to your own error boundary.
+- **Asks or acts:** reload on its own, or show an accessible update prompt (built in, or your own component).
+- **Clears Cache Storage** before reloading, so a service worker cannot serve the old build again.
+- **`lazyRetry`** for flaky networks: retries a dynamic import before giving up.
+- **Small and typed:** React 18 and 19, ESM and CommonJS, TypeScript declarations, no runtime dependencies.
+
+## Contents
+
+- [Install](#install)
+- [Quick start](#quick-start)
+- [How it works](#how-it-works)
+- [Update prompt](#update-prompt)
+- [API](#api)
+- [Recipes](#recipes)
+- [Troubleshooting](#troubleshooting)
+- [Migrating from 0.2](#migrating-from-02)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Install
 
 ```bash
-npm install --save react-clear-browser-cache
-
-or
-
+npm install react-clear-browser-cache
+# or
+pnpm add react-clear-browser-cache
+# or
 yarn add react-clear-browser-cache
 ```
 
 Requires React 18 or newer. The `generate-build-meta` CLI needs Node.js 18.3 or newer.
 
-## Add script in package.json
+## Quick start
 
-Generate a `meta.json` file with a fresh build version before every build.
+**1. Write a build version on every build.** Add the CLI as a `prebuild` script:
 
 ```json
 {
-  "prebuild": "generate-build-meta"
+  "scripts": {
+    "prebuild": "generate-build-meta"
+  }
 }
 ```
 
-The file is written to `./public/meta.json` by default; pass
-`--destination <path>` to write it elsewhere (for example
-`generate-build-meta --destination static/meta.json`). The command exits with
-code 1 when it cannot write the file.
+It writes `{ "version": "<random uuid>" }` to `./public/meta.json`. Use `--destination <path>` for another location, e.g. `generate-build-meta --destination static/meta.json`. It exits with code 1 when it cannot write the file.
 
-## Usage
-
-### Using `Boundary`:
-
-`ClearBrowserCacheBoundary` has context provider for child elements (`useClearBrowserCache`), add him after your `ErrorBoundary`, because `ClearBrowserCacheBoundary` only handles certain errors like `ChunkLoadError`.
+**2. Wrap your app** inside your own error boundary:
 
 ```tsx
 import { createRoot } from 'react-dom/client';
-
-import { ClearBrowserCacheBoundary } from 'react-clear-browser-cache';
+import {
+  ClearBrowserCacheBoundary,
+  UpdatePrompt
+} from 'react-clear-browser-cache';
 
 import App from './App';
 import ErrorBoundary from './ErrorBoundary';
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
-    <ClearBrowserCacheBoundary auto fallback='Loading' duration={60000}>
+    <ClearBrowserCacheBoundary
+      duration={60_000}
+      fallback='Loading…'
+      updatePrompt={UpdatePrompt}
+      promptOnError
+    >
       <App />
     </ClearBrowserCacheBoundary>
   </ErrorBoundary>
 );
 ```
 
-### How it decides to reload
+**3. Deploy.** Tabs with the old build now see a prompt within a minute, or as soon as a lazy chunk fails to load.
 
-- On mount the boundary shows `fallback` and fetches the meta file. On the first
-  visit it records that version and renders the app. If a newer build is found
-  later, it clears Cache Storage and reloads the page — on mount always, while
-  polling only when `auto` is set; otherwise it sets `isLatestVersion` to
-  `false` and leaves the reload to you (`clearCacheAndReload`).
-- Polling runs every `duration` ms while the window has focus.
-- When a child throws an error that looks like a stale build (a missing chunk,
-  or a chunk URL answered with `index.html`), the boundary checks the version:
-  if a new build is out it reloads, otherwise the error goes on to your
-  `ErrorBoundary`. Recognised out of the box: webpack `ChunkLoadError` and CSS
-  chunk errors, Vite CSS preload errors, native `import()` failures in
-  Chrome, Firefox and Safari, and `SyntaxError: Unexpected token '<'`.
-- A meta file that is missing, has no `version`, or is answered with HTML by an
-  SPA fallback is reported to `debug` and otherwise ignored; the app still
-  renders.
+Prefer silent reloads? Drop `updatePrompt` and set `auto`.
 
-## Props
+## How it works
 
-| Name          | Type                 | Default      | More info                                                                                                                                                                                                             |
-| :------------ | :------------------- | :----------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| duration      | number               |              | You can set the duration when to fetch for new updates.                                                                                                                                                               |
-| auto          | boolean              | false        | Set to true to auto-reload the page whenever an update is available.                                                                                                                                                  |
-| fallback      | any                  | null         | You can set fallback data when fetching new version - preloader etc.                                                                                                                                                  |
-| storageKey    | string               | APP_VERSION  | Storage key for saving app version.                                                                                                                                                                                   |
-| storage       | object               | localStorage | Any `{ get(key), set(key, value) }` object, e.g. [store](https://www.npmjs.com/package/store).                                                                                                                        |
-| filename      | string               | meta.json    | Meta file to fetch. A bare name is fetched from the site root; a path starting with `/`, `./` or `../`, or a full URL, is used as is (e.g. `` `${import.meta.env.BASE_URL}meta.json` `` for an app under a sub-path). |
-| errorCheckers | array                | []           | Extra `(error) => boolean` checks for errors caused by a stale build, added to the defaults. `createErrorChecker(name, regexp)` builds one.                                                                           |
-| debug         | function             |              | You can debug state and errors.                                                                                                                                                                                       |
-| updatePrompt  | element or component |              | Shown when a newer build is found and the page is not reloaded on its own. See [Update prompt](#update-prompt).                                                                                                       |
-| promptOnError | boolean              | false        | On a stale-build error, show `updatePrompt` over `fallback` instead of reloading at once.                                                                                                                             |
-
-### Using `hook`:
-
-```tsx
-import React from 'react';
-
-import { useClearBrowserCache } from 'react-clear-browser-cache';
-
-function App() {
-  const contextValue = useClearBrowserCache();
-
-  return null;
-}
+```mermaid
+flowchart LR
+  A[Mount] --> B{fetch meta.json}
+  B -- first visit --> C[store version, render app]
+  B -- same version --> C
+  B -- newer version --> D[clear Cache Storage, reload]
+  C --> E[poll every duration ms while focused]
+  E -- newer version --> F{auto?}
+  F -- yes --> D
+  F -- no --> G[show updatePrompt / isLatestVersion = false]
+  C --> H[child throws a stale-chunk error]
+  H --> I{newer version?}
+  I -- yes --> J[reload, or prompt with promptOnError]
+  I -- no --> K[rethrow to your ErrorBoundary]
 ```
 
-### Using `render props`:
-
-```tsx
-import React from 'react';
-
-import { ClearBrowserCache } from 'react-clear-browser-cache';
-
-function App() {
-  return <ClearBrowserCache>{(contextValue) => null}</ClearBrowserCache>;
-}
-```
-
-## Context value
-
-| Name                | Type     | More info                                                                                                                                      |
-| :------------------ | :------- | :--------------------------------------------------------------------------------------------------------------------------------------------- |
-| loading             | boolean  | Indicates request for a new version.                                                                                                           |
-| isLatestVersion     | boolean  | Indicates if the latest version of the app.                                                                                                    |
-| latestVersion       | string   | Latest version of the app.                                                                                                                     |
-| disabled            | boolean  | Indicates if the boundary component is disabled, stopped all requests, doesn't handle errors, just render children because of internal errors. |
-| clearCacheAndReload | function | Clear CacheStorage and reload the page.                                                                                                        |
-| dismissUpdate       | function | Hide the update prompt until a newer build is found.                                                                                           |
+- On mount the boundary shows `fallback` and fetches the meta file. A newer build found on mount always reloads straight away, since nothing has been shown yet.
+- Polling runs every `duration` ms, only while the window has focus. When it finds a newer build it reloads if `auto` is set; otherwise it shows `updatePrompt`, or just sets `isLatestVersion` to `false` and leaves the reload to you (`clearCacheAndReload`).
+- When a child throws an error that looks like a stale build, the boundary checks the version: if a new build is out it reloads (or prompts, with `promptOnError`); otherwise the error goes on to your `ErrorBoundary`.
+- The meta file is fetched with `cache: 'no-store'`. A file that is missing, has no `version`, or is answered with HTML by an SPA fallback is reported to `debug` and otherwise ignored; the app still renders.
+- If storage cannot be read (blocked cookies, private mode), the boundary disables itself and just renders the app.
 
 ## Update prompt
 
-Pass `updatePrompt` to tell users an update is ready instead of leaving it to
-`isLatestVersion`. It shows when polling (`duration`) finds a new build and
-`auto` is off, and — with `promptOnError` — when part of the app fails to load
-because of a new build. On mount a stale build is still reloaded straight away,
-since nothing has been shown yet.
+The built-in `UpdatePrompt` is an unstyled native `<dialog>`: modal, focus on **Reload**, Escape or **Later** dismisses it, focus returns to where it was, and the buttons lock while the page reloads. A dismissed prompt stays hidden until a newer build appears.
 
-The built-in `UpdatePrompt` is an unstyled native `<dialog>`: modal, focus on
-**Reload**, Escape or **Later** dismisses it.
+Change its text or class, or make it non-modal. Define the wrapper outside your component: a new function on every render remounts the prompt.
 
 ```tsx
 import {
-  ClearBrowserCacheBoundary,
-  UpdatePrompt
+  UpdatePrompt,
+  type UpdatePromptProps
 } from 'react-clear-browser-cache';
 
-<ClearBrowserCacheBoundary duration={60_000} updatePrompt={UpdatePrompt}>
-  <App />
-</ClearBrowserCacheBoundary>;
-```
-
-Change its text or class, or make it non-modal. Define the wrapper outside
-your component: a new function on every render remounts the prompt.
-
-```tsx
 function AppUpdatePrompt(props: UpdatePromptProps) {
   return (
     <UpdatePrompt
@@ -172,14 +154,7 @@ function AppUpdatePrompt(props: UpdatePromptProps) {
 </ClearBrowserCacheBoundary>;
 ```
 
-Or bring your own component; it receives `UpdatePromptProps`:
-
-| Name          | Type                  | More info                                                                                           |
-| :------------ | :-------------------- | :-------------------------------------------------------------------------------------------------- |
-| latestVersion | string                | The new build's version.                                                                            |
-| reason        | `'poll'` \| `'error'` | `error` when a part of the app failed to load; the boundary shows `fallback` behind the prompt.     |
-| reload        | function              | Clear Cache Storage and reload the page.                                                            |
-| dismiss       | function              | Hide until a newer build is found. For `reason: 'error'` the error goes on to your `ErrorBoundary`. |
+Or bring your own component; it receives [`UpdatePromptProps`](#updatepromptprops):
 
 ```tsx
 import type { UpdatePromptProps } from 'react-clear-browser-cache';
@@ -192,18 +167,76 @@ function UpdateDialog({ reload, dismiss }: UpdatePromptProps) {
     </Modal>
   );
 }
-
-<ClearBrowserCacheBoundary duration={60_000} updatePrompt={UpdateDialog}>
-  <App />
-</ClearBrowserCacheBoundary>;
 ```
 
-A plain element works too (`updatePrompt={<Banner />}`); it reads
-`clearCacheAndReload` and `dismissUpdate` from `useClearBrowserCache()`.
+A plain element works too (`updatePrompt={<Banner />}`); it reads `clearCacheAndReload` and `dismissUpdate` from `useClearBrowserCache()`.
 
-## `lazyRetry`
+## API
 
-Retries a failing dynamic import before giving up:
+### `<ClearBrowserCacheBoundary>`
+
+Error boundary and context provider. Place it inside your own error boundary: it only handles stale-build errors.
+
+| Prop            | Type                            | Default         | Description                                                                                                                           |
+| :-------------- | :------------------------------ | :-------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `duration`      | `number`                        | —               | Poll interval in ms. Without it the version is checked on mount and on stale-chunk errors only.                                       |
+| `auto`          | `boolean`                       | `false`         | Reload as soon as a poll finds a newer build.                                                                                         |
+| `fallback`      | `ReactNode`                     | `null`          | Rendered while the first version check runs, e.g. a preloader.                                                                        |
+| `updatePrompt`  | element or component            | —               | Shown when a newer build is found and the page is not reloaded on its own. See [Update prompt](#update-prompt).                       |
+| `promptOnError` | `boolean`                       | `false`         | On a stale-build error, show `updatePrompt` over `fallback` instead of reloading at once.                                             |
+| `filename`      | `string`                        | `'meta.json'`   | Meta file to fetch. A bare name is fetched from the site root; a path starting with `/`, `./` or `../`, or a full URL, is used as is. |
+| `storageKey`    | `string`                        | `'APP_VERSION'` | Key the current version is stored under.                                                                                              |
+| `storage`       | `{ get(key), set(key, value) }` | `localStorage`  | Where the version is kept, e.g. [store](https://www.npmjs.com/package/store).                                                         |
+| `errorCheckers` | `((error) => boolean)[]`        | `[]`            | Extra checks for stale-build errors, added to the defaults. See [`createErrorChecker`](#createerrorcheckername-pattern).              |
+| `debug`         | `(params) => void`              | —               | Receives state changes and errors, for logging.                                                                                       |
+
+### `useClearBrowserCache()` and `<ClearBrowserCache>`
+
+Read the boundary's state from any child, by hook or by render prop:
+
+```tsx
+import {
+  ClearBrowserCache,
+  useClearBrowserCache
+} from 'react-clear-browser-cache';
+
+function VersionBadge() {
+  const { isLatestVersion, clearCacheAndReload } = useClearBrowserCache();
+  return isLatestVersion ? null : (
+    <button onClick={clearCacheAndReload}>Update</button>
+  );
+}
+
+<ClearBrowserCache>
+  {({ latestVersion }) => <small>{latestVersion}</small>}
+</ClearBrowserCache>;
+```
+
+| Field                 | Type                  | Description                                                                 |
+| :-------------------- | :-------------------- | :-------------------------------------------------------------------------- |
+| `loading`             | `boolean`             | A version check is running.                                                 |
+| `isLatestVersion`     | `boolean`             | The running build is the latest one.                                        |
+| `latestVersion`       | `string`              | Version from the most recent meta file.                                     |
+| `disabled`            | `boolean`             | Storage failed, so the boundary stopped checking and only renders children. |
+| `clearCacheAndReload` | `() => Promise<void>` | Clear Cache Storage, store the latest version and reload.                   |
+| `dismissUpdate`       | `() => void`          | Hide the update prompt until a newer build is found.                        |
+
+### `<UpdatePrompt>`
+
+The built-in dialog. Takes `UpdatePromptProps` plus `title`, `message`, `reloadLabel`, `dismissLabel`, `className` and `modal` (default `true`).
+
+### `UpdatePromptProps`
+
+| Prop            | Type                  | Description                                                                                         |
+| :-------------- | :-------------------- | :-------------------------------------------------------------------------------------------------- |
+| `latestVersion` | `string`              | The new build's version.                                                                            |
+| `reason`        | `'poll' \| 'error'`   | `'error'` when part of the app failed to load; the boundary shows `fallback` behind the prompt.     |
+| `reload`        | `() => Promise<void>` | Clear Cache Storage and reload the page.                                                            |
+| `dismiss`       | `() => void`          | Hide until a newer build is found. For `reason: 'error'` the error goes on to your `ErrorBoundary`. |
+
+### `lazyRetry(fn, retries = 2, interval = 1000)`
+
+Calls `fn`, and while it rejects calls it again up to `retries` more times, `interval` ms apart.
 
 ```tsx
 import { lazy } from 'react';
@@ -212,25 +245,65 @@ import { lazyRetry } from 'react-clear-browser-cache';
 const Settings = lazy(() => lazyRetry(() => import('./Settings'), 2, 1000));
 ```
 
-`lazyRetry(fn, retries = 2, interval = 1000)` calls `fn`, and while it rejects
-calls it again up to `retries` more times, `interval` ms apart.
+### `createErrorChecker(name, pattern)`
+
+Builds an error checker that matches an error's `name` and a `RegExp` on its message:
+
+```tsx
+import { createErrorChecker } from 'react-clear-browser-cache';
+
+const errorCheckers = [
+  createErrorChecker('Error', /Failed to load module script/)
+];
+```
+
+Recognised out of the box: webpack `ChunkLoadError` and CSS chunk errors, Vite CSS preload errors, native `import()` failures in Chrome, Firefox and Safari, and `SyntaxError: Unexpected token '<'`.
+
+## Recipes
+
+**App under a sub-path (Vite `base`, GitHub Pages).** Point `filename` at the base URL:
+
+```tsx
+<ClearBrowserCacheBoundary filename={`${import.meta.env.BASE_URL}meta.json`}>
+```
+
+**Version from your CI instead of a random UUID.** Any JSON with a `version` string works, e.g. `echo "{\"version\":\"$GITHUB_SHA\"}" > public/meta.json`.
+
+**Show the update somewhere other than a dialog.** Leave `updatePrompt` out and render a banner from `isLatestVersion` with the hook.
+
+## Troubleshooting
+
+<details>
+<summary>The app never notices a new build</summary>
+
+Open `meta.json` in the browser. It must be the JSON file, not your `index.html`: an SPA fallback that rewrites unknown paths to `index.html` hides a missing file (`debug` reports it). Check that the `prebuild` script ran in CI, and that `duration` is set if you expect polling.
+
+</details>
+
+<details>
+<summary>It reloads, but the old build comes back</summary>
+
+Something in front of the browser cached the HTML. Serve `index.html` and `meta.json` with `Cache-Control: no-cache`; hashed assets can stay immutable.
+
+</details>
+
+<details>
+<summary>A chunk error still reaches my error boundary</summary>
+
+That happens when the build has not changed — the boundary only recovers when a newer version is out. If your bundler words the error differently, add a checker with `createErrorChecker`.
+
+</details>
 
 ## Migrating from 0.2
 
-- React 18 or newer is required, and the package ships ESM and CommonJS builds
-  with type declarations through `exports`.
-- `lazyRetry(fn, retries)` now makes `retries` extra attempts (the default is
-  three attempts in total, it used to be two), and `retries = 0` no longer
-  retries forever.
-- The stored version is only updated when the cache is actually cleared, so
-  `isLatestVersion` stays `false` until the user reloads through
-  `clearCacheAndReload`.
-- `storage` is typed as `{ get, set }`; the `@ts-ignore` the old type needed can
-  go.
+- React 18 or newer is required, and the package ships ESM and CommonJS builds with type declarations through `exports`.
+- `lazyRetry(fn, retries)` now makes `retries` extra attempts (the default is three attempts in total, it used to be two), and `retries = 0` no longer retries forever.
+- The stored version is only updated when the cache is actually cleared, so `isLatestVersion` stays `false` until the user reloads through `clearCacheAndReload`.
+- `storage` is typed as `{ get, set }`; the `@ts-ignore` the old type needed can go.
 
-## Development
+## Contributing
 
-Use Node.js 24 (`.nvmrc`) and pnpm.
+Issues and pull requests are welcome. Use Node.js 24 (`.nvmrc`) and pnpm:
 
 ```bash
 pnpm install
@@ -240,10 +313,7 @@ pnpm test:e2e      # Playwright against the example app in Chromium, Firefox and
 pnpm demo:dev      # the GitHub Pages demo, with deploys simulated in the browser
 ```
 
-The demo is the example app built with `VITE_DEMO=1`. GitHub Pages serves static
-files only, so a fetch shim answers `meta.json` with a version kept in
-localStorage; the version check, cache clearing and reload are the library's own.
-`.github/workflows/pages.yml` publishes it on every push to `master`.
+The demo is the example app built with `VITE_DEMO=1`. GitHub Pages serves static files only, so a fetch shim answers `meta.json` with a version kept in localStorage; the version check, cache clearing and reload are the library's own. `.github/workflows/pages.yml` publishes it on every push to `master`.
 
 ## License
 
