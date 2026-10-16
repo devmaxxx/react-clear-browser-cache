@@ -8,29 +8,20 @@ import {
 } from '@testing-library/react';
 
 import {
+  Catcher,
+  STORAGE_KEY,
+  Thrower,
+  chunkError,
+  metaResponse,
+  mockFetch
+} from './helpers';
+import {
   ClearBrowserCache,
   ClearBrowserCacheBoundary,
   type ClearBrowserCacheBoundaryProps,
   type ClearBrowserCacheStorage,
   useClearBrowserCache
 } from '../src';
-
-const STORAGE_KEY = 'APP_VERSION';
-
-function metaResponse(version: string) {
-  return new Response(JSON.stringify({ version }), {
-    headers: { 'content-type': 'application/json' }
-  });
-}
-
-function mockFetch(...responses: (() => Response)[]) {
-  const fetchMock = vi.fn(async (_url: string) => {
-    const next = responses.length > 1 ? responses.shift()! : responses[0];
-    return next();
-  });
-  vi.stubGlobal('fetch', fetchMock);
-  return fetchMock;
-}
 
 function VersionState() {
   const { loading, isLatestVersion, latestVersion, disabled } =
@@ -56,34 +47,6 @@ function renderBoundary(props: ClearBrowserCacheBoundaryProps = {}) {
       {props.children ?? <VersionState />}
     </ClearBrowserCacheBoundary>
   );
-}
-
-class Catcher extends React.Component<
-  React.PropsWithChildren,
-  { error: unknown }
-> {
-  state = { error: null as unknown };
-
-  static getDerivedStateFromError(error: unknown) {
-    return { error };
-  }
-
-  render() {
-    if (this.state.error) {
-      return <p role='alert'>Caught: {String(this.state.error)}</p>;
-    }
-    return this.props.children;
-  }
-}
-
-function Thrower({ error }: { error: Error }): React.ReactNode {
-  throw error;
-}
-
-function chunkError() {
-  const error = new Error('Loading chunk 3 failed.');
-  error.name = 'ChunkLoadError';
-  return error;
 }
 
 describe('ClearBrowserCacheBoundary', () => {

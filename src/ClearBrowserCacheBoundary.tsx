@@ -5,6 +5,7 @@ import {
   defaultErrorCheckers,
   isCacheError
 } from './errorCheckers';
+import type { UpdatePromptProps } from './UpdatePrompt';
 
 export type ClearBrowserCacheStorage = {
   get: (key: string) => string | null;
@@ -33,10 +34,21 @@ export type ClearBrowserCacheBoundaryProps = React.PropsWithChildren<{
   fallback?: React.ReactNode;
   debug?: ClearBrowserCacheDebugFunc;
   errorCheckers?: ClearBrowserCacheErrorChecker[];
+  /**
+   * Shown when a newer build is found and the page is not reloaded on its own.
+   * An element, or a component that receives `UpdatePromptProps`.
+   */
+  updatePrompt?: React.ReactNode | React.ComponentType<UpdatePromptProps>;
+  /**
+   * When a stale-build error hits, show `updatePrompt` over the fallback
+   * instead of reloading straight away.
+   */
+  promptOnError?: boolean;
 }>;
 
 export type ClearBrowserCacheContextValue = ClearBrowserCacheBoundaryState & {
   clearCacheAndReload: () => Promise<void>;
+  dismissUpdate: () => void;
 };
 
 type ClearBrowserCacheProps = {
@@ -45,7 +57,10 @@ type ClearBrowserCacheProps = {
 
 type State = ClearBrowserCacheBoundaryState & {
   caughtError: { error: unknown; rethrow: boolean } | null;
+  dismissedVersion: string | null;
 };
+
+type CheckResult = 'reloading' | 'outdated' | 'current' | 'failed';
 
 const unknownVersion = 'latest';
 
@@ -68,6 +83,25 @@ export function ClearBrowserCache({ children }: ClearBrowserCacheProps) {
 
 function isUrlLike(filename: string) {
   return /^(\/|\.{1,2}\/|[a-z][a-z\d+.-]*:)/i.test(filename);
+}
+
+const componentTypes = new Set([
+  Symbol.for('react.memo'),
+  Symbol.for('react.forward_ref'),
+  Symbol.for('react.lazy')
+]);
+
+// A ReactNode can be an object too (an element, a portal), so a component is
+// told apart by being a function or one of React's component wrappers.
+function isComponentType<P>(
+  value: React.ReactNode | React.ComponentType<P>
+): value is React.ComponentType<P> {
+  return (
+    typeof value === 'function' ||
+    (typeof value === 'object' &&
+      value !== null &&
+      componentTypes.has((value as { $$typeof?: symbol }).$$typeof!))
+  );
 }
 
 function readStoredVersion(storage: ClearBrowserCacheStorage, key: string) {
@@ -102,7 +136,8 @@ export class ClearBrowserCacheBoundary extends React.Component<
       latestVersion: version ?? unknownVersion,
       disabled,
       isLatestVersion: true,
-      caughtError: null
+      caughtError: null,
+      dismissedVersion: null
     };
   }
 
@@ -179,10 +214,15 @@ export class ClearBrowserCacheBoundary extends React.Component<
       return;
     }
 
-    this.checkVersion({ auto: true }).then((reloading) => {
+    const { promptOnError, updatePrompt } = this.props;
+    const prompt = Boolean(promptOnError) && updatePrompt != null;
+
+    this.checkVersion({ auto: !prompt }).then((result) => {
       this.debug(error, errorInfo);
 
-      if (!reloading) {
+      // 'outdated' only comes back with the prompt on, which now shows over
+      // the fallback and lets the user decide.
+      if (result !== 'reloading' && result !== 'outdated') {
         this.rethrow(error);
       }
     });
@@ -194,8 +234,22 @@ export class ClearBrowserCacheBoundary extends React.Component<
     }
   }
 
+  dismissUpdate = () => {
+    const { caughtError, latestVersion } = this.state;
+
+    if (caughtError) {
+      this.rethrow(caughtError.error);
+    } else {
+      this.setState({ dismissedVersion: latestVersion });
+    }
+  };
+
   debug = (error?: unknown, errorInfo?: React.ErrorInfo) => {
-    const { caughtError: _caughtError, ...state } = this.state;
+    const {
+      caughtError: _caughtError,
+      dismissedVersion: _dismissedVersion,
+      ...state
+    } = this.state;
 
     // A throwing debug callback must not break the version check that called it.
     try {
@@ -272,8 +326,9 @@ export class ClearBrowserCacheBoundary extends React.Component<
     }
   }
 
-  /** Resolves to true when a page reload was started. */
-  checkVersion = async ({ auto = this.props.auto ?? false } = {}) => {
+  checkVersion = async ({
+    auto = this.props.auto ?? false
+  } = {}): Promise<CheckResult> => {
     try {
       const latestVersion = await this.fetchLatestVersion();
 
@@ -286,16 +341,18 @@ export class ClearBrowserCacheBoundary extends React.Component<
 
       if (!isLatestVersion && auto) {
         await this.clearCacheAndReload(latestVersion);
-        return true;
+        return 'reloading';
       }
 
       this.updateState({ loading: false, latestVersion, isLatestVersion });
+
+      return isLatestVersion ? 'current' : 'outdated';
     } catch (error) {
       this.debug(error);
       this.updateState({ loading: false });
-    }
 
-    return false;
+      return 'failed';
+    }
   };
 
   updateState(patch: Partial<ClearBrowserCacheBoundaryState>) {
@@ -314,6 +371,38 @@ export class ClearBrowserCacheBoundary extends React.Component<
 
   clearCacheAndReloadFromContext = () => this.clearCacheAndReload();
 
+  renderUpdatePrompt() {
+    const { updatePrompt } = this.props;
+    const {
+      caughtError,
+      loading,
+      isLatestVersion,
+      latestVersion,
+      dismissedVersion
+    } = this.state;
+    const reason = caughtError ? 'error' : 'poll';
+    const dismissed = reason === 'poll' && latestVersion === dismissedVersion;
+
+    if (updatePrompt == null || loading || isLatestVersion || dismissed) {
+      return null;
+    }
+
+    if (!isComponentType(updatePrompt)) {
+      return updatePrompt;
+    }
+
+    const Prompt = updatePrompt;
+
+    return (
+      <Prompt
+        latestVersion={latestVersion}
+        reason={reason}
+        reload={this.clearCacheAndReloadFromContext}
+        dismiss={this.dismissUpdate}
+      />
+    );
+  }
+
   render() {
     const { children, fallback = null } = this.props;
     const { caughtError, loading, isLatestVersion, latestVersion, disabled } =
@@ -323,10 +412,6 @@ export class ClearBrowserCacheBoundary extends React.Component<
       throw caughtError.error;
     }
 
-    if (caughtError || loading) {
-      return fallback;
-    }
-
     return (
       <ClearBrowserCacheCtx.Provider
         value={{
@@ -334,10 +419,12 @@ export class ClearBrowserCacheBoundary extends React.Component<
           isLatestVersion,
           latestVersion,
           disabled,
-          clearCacheAndReload: this.clearCacheAndReloadFromContext
+          clearCacheAndReload: this.clearCacheAndReloadFromContext,
+          dismissUpdate: this.dismissUpdate
         }}
       >
-        {children}
+        {caughtError || loading ? fallback : children}
+        {this.renderUpdatePrompt()}
       </ClearBrowserCacheCtx.Provider>
     );
   }

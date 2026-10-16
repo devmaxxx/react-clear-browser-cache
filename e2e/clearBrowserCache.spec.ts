@@ -156,3 +156,75 @@ test('an SPA fallback answering meta.json with HTML does not block or loop', asy
   await expect(loads(page)).toHaveText('1');
   expect(await storedVersion(page)).toBeNull();
 });
+
+test.describe('update prompt', () => {
+  test('polling opens a modal dialog that Escape dismisses until a newer build', async ({
+    page
+  }) => {
+    const server = await deployServer(page, 'v1');
+    await page.goto('/?prompt=1&duration=200');
+    await expect(page.getByTestId('lazy')).toBeVisible();
+
+    server.deploy('v2');
+
+    const dialog = page.getByRole('dialog', {
+      name: 'A new version is available'
+    });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Reload' })).toBeFocused();
+    // Modal: the page behind is inert.
+    expect(
+      await page.evaluate(() =>
+        document.querySelector('dialog')?.matches(':modal')
+      )
+    ).toBe(true);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await page.waitForTimeout(600);
+    await expect(dialog).toBeHidden();
+    await expect(loads(page)).toHaveText('1');
+
+    server.deploy('v3');
+    await expect(dialog).toBeVisible();
+  });
+
+  test('Reload in the dialog clears the cache and loads the new build', async ({
+    page
+  }) => {
+    const server = await deployServer(page, 'v1');
+    await page.goto('/?prompt=1&duration=200');
+    await expect(loads(page)).toHaveText('1');
+
+    server.deploy('v2');
+    await page.getByRole('button', { name: 'Reload' }).click();
+
+    await expect(loads(page)).toHaveText('2');
+    await expect(page.getByRole('dialog')).toBeHidden();
+    expect(await storedVersion(page)).toBe('v2');
+  });
+
+  test('promptOnError asks before reloading when a chunk is gone', async ({
+    page
+  }) => {
+    const server = await deployServer(page, 'v1');
+    await page.goto('/?prompt=1&promptOnError=1');
+    await expect(page.getByTestId('lazy')).toBeVisible();
+
+    server.deploy('v1', 'v2');
+    await breakLazyChunk(page, 1);
+    await page.reload();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('could not load');
+    expect(await page.evaluate(() => sessionStorage.getItem('loads'))).toBe(
+      '2'
+    );
+
+    await dialog.getByRole('button', { name: 'Reload' }).click();
+
+    await expect(loads(page)).toHaveText('3');
+    await expect(page.getByTestId('lazy')).toBeVisible();
+    expect(await storedVersion(page)).toBe('v2');
+  });
+});

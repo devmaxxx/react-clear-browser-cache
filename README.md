@@ -74,16 +74,18 @@ createRoot(document.getElementById('root')!).render(
 
 ## Props
 
-| Name          | Type     | Default      | More info                                                                                                                                                                                                             |
-| :------------ | :------- | :----------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| duration      | number   |              | You can set the duration when to fetch for new updates.                                                                                                                                                               |
-| auto          | boolean  | false        | Set to true to auto-reload the page whenever an update is available.                                                                                                                                                  |
-| fallback      | any      | null         | You can set fallback data when fetching new version - preloader etc.                                                                                                                                                  |
-| storageKey    | string   | APP_VERSION  | Storage key for saving app version.                                                                                                                                                                                   |
-| storage       | object   | localStorage | Any `{ get(key), set(key, value) }` object, e.g. [store](https://www.npmjs.com/package/store).                                                                                                                        |
-| filename      | string   | meta.json    | Meta file to fetch. A bare name is fetched from the site root; a path starting with `/`, `./` or `../`, or a full URL, is used as is (e.g. `` `${import.meta.env.BASE_URL}meta.json` `` for an app under a sub-path). |
-| errorCheckers | array    | []           | Extra `(error) => boolean` checks for errors caused by a stale build, added to the defaults. `createErrorChecker(name, regexp)` builds one.                                                                           |
-| debug         | function |              | You can debug state and errors.                                                                                                                                                                                       |
+| Name          | Type                 | Default      | More info                                                                                                                                                                                                             |
+| :------------ | :------------------- | :----------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| duration      | number               |              | You can set the duration when to fetch for new updates.                                                                                                                                                               |
+| auto          | boolean              | false        | Set to true to auto-reload the page whenever an update is available.                                                                                                                                                  |
+| fallback      | any                  | null         | You can set fallback data when fetching new version - preloader etc.                                                                                                                                                  |
+| storageKey    | string               | APP_VERSION  | Storage key for saving app version.                                                                                                                                                                                   |
+| storage       | object               | localStorage | Any `{ get(key), set(key, value) }` object, e.g. [store](https://www.npmjs.com/package/store).                                                                                                                        |
+| filename      | string               | meta.json    | Meta file to fetch. A bare name is fetched from the site root; a path starting with `/`, `./` or `../`, or a full URL, is used as is (e.g. `` `${import.meta.env.BASE_URL}meta.json` `` for an app under a sub-path). |
+| errorCheckers | array                | []           | Extra `(error) => boolean` checks for errors caused by a stale build, added to the defaults. `createErrorChecker(name, regexp)` builds one.                                                                           |
+| debug         | function             |              | You can debug state and errors.                                                                                                                                                                                       |
+| updatePrompt  | element or component |              | Shown when a newer build is found and the page is not reloaded on its own. See [Update prompt](#update-prompt).                                                                                                       |
+| promptOnError | boolean              | false        | On a stale-build error, show `updatePrompt` over `fallback` instead of reloading at once.                                                                                                                             |
 
 ### Using `hook`:
 
@@ -120,6 +122,82 @@ function App() {
 | latestVersion       | string   | Latest version of the app.                                                                                                                     |
 | disabled            | boolean  | Indicates if the boundary component is disabled, stopped all requests, doesn't handle errors, just render children because of internal errors. |
 | clearCacheAndReload | function | Clear CacheStorage and reload the page.                                                                                                        |
+| dismissUpdate       | function | Hide the update prompt until a newer build is found.                                                                                           |
+
+## Update prompt
+
+Pass `updatePrompt` to tell users an update is ready instead of leaving it to
+`isLatestVersion`. It shows when polling (`duration`) finds a new build and
+`auto` is off, and — with `promptOnError` — when part of the app fails to load
+because of a new build. On mount a stale build is still reloaded straight away,
+since nothing has been shown yet.
+
+The built-in `UpdatePrompt` is an unstyled native `<dialog>`: modal, focus on
+**Reload**, Escape or **Later** dismisses it.
+
+```tsx
+import {
+  ClearBrowserCacheBoundary,
+  UpdatePrompt
+} from 'react-clear-browser-cache';
+
+<ClearBrowserCacheBoundary duration={60_000} updatePrompt={UpdatePrompt}>
+  <App />
+</ClearBrowserCacheBoundary>;
+```
+
+Change its text or class, or make it non-modal. Define the wrapper outside
+your component: a new function on every render remounts the prompt.
+
+```tsx
+function AppUpdatePrompt(props: UpdatePromptProps) {
+  return (
+    <UpdatePrompt
+      {...props}
+      className='update-dialog'
+      title='Update ready'
+      reloadLabel='Refresh'
+    />
+  );
+}
+
+<ClearBrowserCacheBoundary
+  duration={60_000}
+  promptOnError
+  updatePrompt={AppUpdatePrompt}
+>
+  <App />
+</ClearBrowserCacheBoundary>;
+```
+
+Or bring your own component; it receives `UpdatePromptProps`:
+
+| Name          | Type                  | More info                                                                                           |
+| :------------ | :-------------------- | :-------------------------------------------------------------------------------------------------- |
+| latestVersion | string                | The new build's version.                                                                            |
+| reason        | `'poll'` \| `'error'` | `error` when a part of the app failed to load; the boundary shows `fallback` behind the prompt.     |
+| reload        | function              | Clear Cache Storage and reload the page.                                                            |
+| dismiss       | function              | Hide until a newer build is found. For `reason: 'error'` the error goes on to your `ErrorBoundary`. |
+
+```tsx
+import type { UpdatePromptProps } from 'react-clear-browser-cache';
+
+function UpdateDialog({ reload, dismiss }: UpdatePromptProps) {
+  return (
+    <Modal open onClose={dismiss}>
+      A new version is available.
+      <Button onClick={reload}>Refresh</Button>
+    </Modal>
+  );
+}
+
+<ClearBrowserCacheBoundary duration={60_000} updatePrompt={UpdateDialog}>
+  <App />
+</ClearBrowserCacheBoundary>;
+```
+
+A plain element works too (`updatePrompt={<Banner />}`); it reads
+`clearCacheAndReload` and `dismissUpdate` from `useClearBrowserCache()`.
 
 ## `lazyRetry`
 

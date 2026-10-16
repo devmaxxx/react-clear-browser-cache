@@ -11,7 +11,9 @@ pnpm example:dev
 
 Query parameters configure the boundary, so one build covers every scenario:
 
-| Parameter  | Effect                                  |
-| :--------- | :-------------------------------------- |
-| `auto=1`   | Reload as soon as a new build is found. |
-| `duration` | Polling interval in ms.                 |
+| Parameter         | Effect                                              |
+| :---------------- | :-------------------------------------------------- |
+| `auto=1`          | Reload as soon as a new build is found.             |
+| `duration`        | Polling interval in ms.                             |
+| `prompt=1`        | Show the built-in `UpdatePrompt` dialog.            |
+| `promptOnError=1` | Prompt instead of reloading on a stale-chunk error. |

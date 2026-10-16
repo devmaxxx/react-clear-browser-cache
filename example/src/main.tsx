@@ -2,7 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ClearBrowserCacheBoundary,
-  type ClearBrowserCacheDebugFunc
+  type ClearBrowserCacheDebugFunc,
+  UpdatePrompt
 } from 'react-clear-browser-cache';
 
 import App from './App';
@@ -28,6 +29,8 @@ createRoot(document.getElementById('root')!).render(
         duration={Number(params.get('duration')) || undefined}
         filename={`${import.meta.env.BASE_URL}meta.json`}
         debug={debug}
+        updatePrompt={params.get('prompt') === '1' ? UpdatePrompt : undefined}
+        promptOnError={params.get('promptOnError') === '1'}
       >
         <App loads={loads} />
       </ClearBrowserCacheBoundary>
