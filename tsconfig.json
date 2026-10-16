@@ -1,27 +1,19 @@
 {
   "compilerOptions": {
-    "outDir": "dist",
+    "target": "es2020",
     "module": "esnext",
-    "lib": ["dom", "esnext"],
-    "moduleResolution": "node",
-    "jsx": "react",
-    "sourceMap": true,
-    "declaration": true,
-    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "lib": ["dom", "dom.iterable", "es2022"],
+    "jsx": "react-jsx",
+    "types": ["node", "vitest/globals"],
+    "strict": true,
     "noImplicitReturns": true,
-    "noImplicitThis": true,
-    "strictNullChecks": true,
-    "suppressImplicitAnyIndexErrors": true,
-    // "noUnusedLocals": true,
-    "allowSyntheticDefaultImports": true,
-    "target": "es5",
-    "allowJs": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "example"]
+  "include": ["src", "test", "*.config.mts"]
 }

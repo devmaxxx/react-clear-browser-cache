@@ -1,5 +1,17 @@
-This example was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# react-clear-browser-cache example
 
-It is linked to the react-clear-browser-cache package in the parent directory for development purposes.
+A Vite app wired to the package in the parent directory through the pnpm
+workspace. It is also the app the Playwright suite in `../e2e` runs against.
 
-You can run `yarn install` and then `yarn start` to test your package.
+```bash
+pnpm install
+pnpm build           # build the library first; the example imports dist/
+pnpm example:dev
+```
+
+Query parameters configure the boundary, so one build covers every scenario:
+
+| Parameter  | Effect                                  |
+| :--------- | :-------------------------------------- |
+| `auto=1`   | Reload as soon as a new build is found. |
+| `duration` | Polling interval in ms.                 |

@@ -1,15 +1,5 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 
-import ChunkLoadError from './ChunkLoadError';
-
-export default function Component({ children }: any) {
-  React.useEffect(() => {
-    // throw new ChunkLoadError('Loading chunk 1 failed.');
-  }, []);
-
-  React.useEffect(() => {
-    // throw new SyntaxError("Unexpected token '<'");
-  }, []);
-
-  return <div>{children}</div>;
+export default function Component({ children }: { children: ReactNode }) {
+  return <p data-testid='lazy'>{children}</p>;
 }

@@ -1,0 +1,6 @@
+dist
+coverage
+pnpm-lock.yaml
+playwright-report
+test-results
+example/public/meta.json
