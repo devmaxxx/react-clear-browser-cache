@@ -1,21 +1,22 @@
-export function lazyRetry(
-  fn: () => Promise<any>,
-  retriesLeft = 2,
+/**
+ * Calls `fn` and, while it rejects, calls it again up to `retries` more times,
+ * waiting `interval` ms between attempts. Rejects with the last error.
+ */
+export function lazyRetry<T>(
+  fn: () => Promise<T>,
+  retries = 2,
   interval = 1000
-) {
-  return new Promise((resolve, reject) => {
-    fn()
-      .then(resolve)
-      .catch((error) => {
-        setTimeout(() => {
-          if (retriesLeft === 1) {
-            reject(error);
-            return;
-          }
+): Promise<T> {
+  return fn().catch((error: unknown) => {
+    if (retries <= 0) {
+      throw error;
+    }
 
-          lazyRetry(fn, retriesLeft - 1, interval).then(resolve, reject);
-        }, interval);
-      });
+    return new Promise<T>((resolve, reject) => {
+      setTimeout(() => {
+        lazyRetry(fn, retries - 1, interval).then(resolve, reject);
+      }, interval);
+    });
   });
 }
 

@@ -1,39 +1,31 @@
-const fs = require('fs');
-const mkdirp = require('mkdirp');
-const path = require('path');
-const parseArgs = require('minimist');
-const uuid = require('uuid');
+#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const { randomUUID } = require('node:crypto');
+const { parseArgs } = require('node:util');
 
-const getDirName = path.dirname;
-const appVersion = uuid.v4();
-
-const jsonData = {
-  version: appVersion
-};
-
-const jsonContent = JSON.stringify(jsonData);
-
-const args = parseArgs(process.argv.slice(2));
-
-const destination = args.destination || './public/meta.json';
-
-const filename = destination.match(/[^\\/]+$/)[0];
-
-writeFile(destination, jsonContent, (err) => {
-  if (err) {
-    console.log(`An error occured while writing JSON Object to ${filename}`);
-    return console.log(err);
-  }
-  console.log(`${filename} file has been saved with latest version number`);
-  return null;
+// Non-strict like the minimist parser it replaces: existing build scripts may
+// pass flags this CLI never read.
+const { values } = parseArgs({
+  options: {
+    destination: { type: 'string' }
+  },
+  strict: false
 });
 
-function writeFile(path, contents, cb) {
-  mkdirp(getDirName(path))
-    .then(() => {
-        fs.writeFile(path, contents, cb);
-    })
-    .catch(err => {
-        return cb(err);
-    });
+// parseArgs ignores `default` before Node 18.11, so the fallback lives here.
+const destination =
+  typeof values.destination === 'string'
+    ? values.destination
+    : './public/meta.json';
+const filename = path.basename(destination);
+
+try {
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, JSON.stringify({ version: randomUUID() }));
+  console.log(`${filename} file has been saved with latest version number`);
+} catch (error) {
+  console.error(`An error occurred while writing JSON Object to ${filename}`);
+  console.error(error);
+  process.exitCode = 1;
 }
