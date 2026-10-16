@@ -32,7 +32,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "generate-build-meta": "./bin/cli.js"
+    "generate-build-meta": "bin/cli.js"
   },
   "files": [
     "bin",
