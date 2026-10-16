@@ -44,6 +44,22 @@ export type ClearBrowserCacheBoundaryProps = React.PropsWithChildren<{
    * instead of reloading straight away.
    */
   promptOnError?: boolean;
+  /**
+   * Reload into a newer build as soon as the tab goes to the background,
+   * where the user cannot see it happen.
+   */
+  reloadWhenHidden?: boolean;
+  /**
+   * Asked before every reload the user did not start (`auto`,
+   * `reloadWhenHidden`); return false to keep the page, e.g. while a form has
+   * unsaved changes.
+   */
+  canReload?: () => boolean;
+  /**
+   * Show `fallback` until the first version check answers. Off renders the
+   * app at once and checks in the background.
+   */
+  blocking?: boolean;
 }>;
 
 export type ClearBrowserCacheContextValue = ClearBrowserCacheBoundaryState & {
@@ -120,6 +136,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
   // successful check on this device.
   appVersion: string | null;
   checkInterval: ReturnType<typeof setInterval> | null = null;
+  lastCheckAt = 0;
   unmounted = false;
 
   constructor(props: ClearBrowserCacheBoundaryProps) {
@@ -168,8 +185,9 @@ export class ClearBrowserCacheBoundary extends React.Component<
   componentDidMount() {
     // StrictMode unmounts and remounts the same instance in development.
     this.unmounted = false;
-    window.addEventListener('focus', this.startVersionCheck);
+    window.addEventListener('focus', this.handleFocus);
     window.addEventListener('blur', this.stopVersionCheck);
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
 
     // Nothing has been shown yet, so a stale build is reloaded on mount even
     // without `auto`.
@@ -200,8 +218,12 @@ export class ClearBrowserCacheBoundary extends React.Component<
     this.unmounted = true;
     this.stopVersionCheck();
 
-    window.removeEventListener('focus', this.startVersionCheck);
+    window.removeEventListener('focus', this.handleFocus);
     window.removeEventListener('blur', this.stopVersionCheck);
+    document.removeEventListener(
+      'visibilitychange',
+      this.handleVisibilityChange
+    );
   }
 
   componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
@@ -259,14 +281,55 @@ export class ClearBrowserCacheBoundary extends React.Component<
     }
   };
 
+  // Polling stops while the window is in the background, so a tab left alone
+  // for hours would otherwise wait a whole `duration` after coming back.
+  handleFocus = () => {
+    const { duration } = this.props;
+
+    if (
+      !this.state.disabled &&
+      duration &&
+      Date.now() - this.lastCheckAt >= duration
+    ) {
+      this.checkVersion();
+    }
+
+    this.startVersionCheck();
+  };
+
+  handleVisibilityChange = () => {
+    const { loading, isLatestVersion, caughtError, disabled } = this.state;
+
+    if (
+      document.visibilityState === 'hidden' &&
+      this.props.reloadWhenHidden &&
+      !disabled &&
+      !loading &&
+      !isLatestVersion &&
+      !caughtError &&
+      this.reloadAllowed()
+    ) {
+      this.clearCacheAndReload();
+    }
+  };
+
+  reloadAllowed() {
+    try {
+      return this.props.canReload?.() ?? true;
+    } catch (error) {
+      this.debug(error);
+      return false;
+    }
+  }
+
   startVersionCheck = () => {
-    const { duration, auto = false } = this.props;
+    const { duration } = this.props;
 
     this.stopVersionCheck();
 
     if (!this.state.disabled && duration) {
       this.checkInterval = setInterval(() => {
-        this.checkVersion({ auto });
+        this.checkVersion();
       }, duration);
     }
   };
@@ -327,8 +390,10 @@ export class ClearBrowserCacheBoundary extends React.Component<
   }
 
   checkVersion = async ({
-    auto = this.props.auto ?? false
+    auto = (this.props.auto ?? false) && this.reloadAllowed()
   } = {}): Promise<CheckResult> => {
+    this.lastCheckAt = Date.now();
+
     try {
       const latestVersion = await this.fetchLatestVersion();
 
@@ -404,7 +469,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
   }
 
   render() {
-    const { children, fallback = null } = this.props;
+    const { children, fallback = null, blocking = true } = this.props;
     const { caughtError, loading, isLatestVersion, latestVersion, disabled } =
       this.state;
 
@@ -423,7 +488,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
           dismissUpdate: this.dismissUpdate
         }}
       >
-        {caughtError || loading ? fallback : children}
+        {caughtError || (loading && blocking) ? fallback : children}
         {this.renderUpdatePrompt()}
       </ClearBrowserCacheCtx.Provider>
     );

@@ -39,6 +39,8 @@ type Settings = {
   duration: number;
   prompt: PromptChoice;
   promptOnError: boolean;
+  reloadWhenHidden: boolean;
+  blocking: boolean;
 };
 
 const durations = [
@@ -56,7 +58,9 @@ function readSettings(): Settings {
     auto: params.get('auto') === '1',
     duration: durations.some((d) => d.value === duration) ? duration : 3000,
     prompt: prompt === 'banner' || prompt === 'none' ? prompt : 'dialog',
-    promptOnError: params.get('promptOnError') !== '0'
+    promptOnError: params.get('promptOnError') !== '0',
+    reloadWhenHidden: params.get('reloadWhenHidden') === '1',
+    blocking: params.get('blocking') !== '0'
   };
 }
 
@@ -66,7 +70,9 @@ function writeSettings(settings: Settings) {
     auto: settings.auto ? '1' : '0',
     duration: String(settings.duration),
     prompt: settings.prompt,
-    promptOnError: settings.promptOnError ? '1' : '0'
+    promptOnError: settings.promptOnError ? '1' : '0',
+    reloadWhenHidden: settings.reloadWhenHidden ? '1' : '0',
+    blocking: settings.blocking ? '1' : '0'
   });
   history.replaceState(null, '', `?${params}`);
 }
@@ -256,6 +262,24 @@ function Settings({
         <code>auto</code>
         <small>reload as soon as a poll finds a new build</small>
       </label>
+      <label className='check'>
+        <input
+          type='checkbox'
+          checked={settings.reloadWhenHidden}
+          onChange={(e) => set({ reloadWhenHidden: e.target.checked })}
+        />
+        <code>reloadWhenHidden</code>
+        <small>reload quietly when you switch to another tab</small>
+      </label>
+      <label className='check'>
+        <input
+          type='checkbox'
+          checked={!settings.blocking}
+          onChange={(e) => set({ blocking: !e.target.checked })}
+        />
+        <code>blocking={'{false}'}</code>
+        <small>show the app before the first check answers</small>
+      </label>
     </fieldset>
   );
 }
@@ -265,6 +289,8 @@ function snippet(settings: Settings) {
     "filename='/react-clear-browser-cache/meta.json'",
     settings.duration ? `duration={${settings.duration}}` : null,
     settings.auto ? 'auto' : null,
+    settings.reloadWhenHidden ? 'reloadWhenHidden' : null,
+    settings.blocking ? null : 'blocking={false}',
     settings.prompt === 'dialog' ? 'updatePrompt={UpdatePrompt}' : null,
     settings.prompt === 'banner' ? 'updatePrompt={MyBanner}' : null,
     settings.prompt !== 'none' && settings.promptOnError
@@ -366,8 +392,8 @@ export default function Demo() {
             <code>{snippet(settings)}</code>
           </pre>
           <p className='note'>
-            Polling pauses while this tab is in the background and restarts when
-            it gets focus.
+            Polling pauses while this tab is in the background. When it gets
+            focus back after a whole interval, it checks at once.
           </p>
         </section>
 
@@ -380,6 +406,8 @@ export default function Demo() {
               duration={settings.duration || undefined}
               updatePrompt={prompts[settings.prompt]}
               promptOnError={settings.promptOnError}
+              reloadWhenHidden={settings.reloadWhenHidden}
+              blocking={settings.blocking}
               filename={`${import.meta.env.BASE_URL}meta.json`}
               debug={debug}
             >
