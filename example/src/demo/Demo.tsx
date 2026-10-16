@@ -34,31 +34,48 @@ const Reports = lazy(() =>
     : Promise.reject(failingChunkError())
 );
 
+type UpdateMode = 'prompt' | 'reload' | 'flag';
+
 type Settings = {
-  auto: boolean;
   duration: number;
+  onUpdate: UpdateMode;
   prompt: PromptChoice;
-  promptOnError: boolean;
+  promptOnChunkError: boolean;
   reloadWhenHidden: boolean;
   blocking: boolean;
 };
 
-const durations = [
+type Choice<T> = { value: T; label: string; hint?: string };
+
+const durations: Choice<number>[] = [
   { value: 0, label: 'Off' },
-  { value: 3000, label: 'Every 3 s' },
-  { value: 10000, label: 'Every 10 s' }
+  { value: 3000, label: '3 s' },
+  { value: 10000, label: '10 s' }
 ];
+
+const updateModes: Choice<UpdateMode>[] = [
+  { value: 'prompt', label: 'prompt', hint: 'ask the user' },
+  { value: 'reload', label: 'reload', hint: 'reload at once' },
+  { value: 'flag', label: 'flag', hint: 'only set isLatestVersion' }
+];
+
+const promptChoices: Choice<PromptChoice>[] = [
+  { value: 'dialog', label: 'Dialog', hint: 'modal <dialog>' },
+  { value: 'banner', label: 'Banner', hint: 'toast at the bottom' }
+];
+
+function pick<T>(choices: Choice<T>[], raw: unknown, fallback: T): T {
+  return choices.find((c) => String(c.value) === raw)?.value ?? fallback;
+}
 
 function readSettings(): Settings {
   const params = new URLSearchParams(location.search);
-  const prompt = params.get('prompt');
-  const duration = Number(params.get('duration') ?? 3000);
 
   return {
-    auto: params.get('auto') === '1',
-    duration: durations.some((d) => d.value === duration) ? duration : 3000,
-    prompt: prompt === 'banner' || prompt === 'none' ? prompt : 'dialog',
-    promptOnError: params.get('promptOnError') !== '0',
+    duration: pick(durations, params.get('duration'), 3000),
+    onUpdate: pick(updateModes, params.get('onUpdate'), 'prompt'),
+    prompt: pick(promptChoices, params.get('prompt'), 'dialog'),
+    promptOnChunkError: params.get('promptOnChunkError') !== '0',
     reloadWhenHidden: params.get('reloadWhenHidden') === '1',
     blocking: params.get('blocking') !== '0'
   };
@@ -67,14 +84,18 @@ function readSettings(): Settings {
 // Kept in the URL so the settings survive the reloads the demo is about.
 function writeSettings(settings: Settings) {
   const params = new URLSearchParams({
-    auto: settings.auto ? '1' : '0',
     duration: String(settings.duration),
+    onUpdate: settings.onUpdate,
     prompt: settings.prompt,
-    promptOnError: settings.promptOnError ? '1' : '0',
+    promptOnChunkError: settings.promptOnChunkError ? '1' : '0',
     reloadWhenHidden: settings.reloadWhenHidden ? '1' : '0',
     blocking: settings.blocking ? '1' : '0'
   });
   history.replaceState(null, '', `?${params}`);
+}
+
+function promptInUse(settings: Settings) {
+  return settings.onUpdate === 'prompt' || settings.promptOnChunkError;
 }
 
 function useServer() {
@@ -203,6 +224,73 @@ function ReportsSection() {
   );
 }
 
+function RadioGroup<T extends string | number>({
+  name,
+  legend,
+  choices,
+  value,
+  disabled,
+  onChange
+}: {
+  name: string;
+  legend: ReactNode;
+  choices: Choice<T>[];
+  value: T;
+  disabled?: boolean;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <fieldset className='radio-group' disabled={disabled}>
+      <legend>{legend}</legend>
+      <div className='segments'>
+        {choices.map((choice) => (
+          <label key={String(choice.value)} className='segment'>
+            <input
+              type='radio'
+              name={name}
+              checked={choice.value === value}
+              onChange={() => onChange(choice.value)}
+            />
+            <span>
+              <strong>{choice.label}</strong>
+              {choice.hint && <small>{choice.hint}</small>}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function Toggle({
+  checked,
+  disabled,
+  onChange,
+  name,
+  hint
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+  name: ReactNode;
+  hint: string;
+}) {
+  return (
+    <label className='toggle'>
+      <input
+        type='checkbox'
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        <code>{name}</code>
+        <small>{hint}</small>
+      </span>
+    </label>
+  );
+}
+
 function Settings({
   settings,
   onChange
@@ -211,76 +299,54 @@ function Settings({
   onChange: (settings: Settings) => void;
 }) {
   const set = (patch: Partial<Settings>) => onChange({ ...settings, ...patch });
-  const promptOff = settings.prompt === 'none';
 
   return (
-    <fieldset className='settings'>
-      <legend>Boundary props</legend>
-      <label>
-        <span>
-          <code>duration</code>
-        </span>
-        <select
+    <div className='settings'>
+      <div className='radios'>
+        <RadioGroup
+          name='duration'
+          legend={<code>duration</code>}
+          choices={durations}
           value={settings.duration}
-          onChange={(e) => set({ duration: Number(e.target.value) })}
-        >
-          {durations.map((d) => (
-            <option key={d.value} value={d.value}>
-              {d.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>
-          <code>updatePrompt</code>
-        </span>
-        <select
+          onChange={(duration) => set({ duration })}
+        />
+        <RadioGroup
+          name='onUpdate'
+          legend={<code>onUpdate</code>}
+          choices={updateModes}
+          value={settings.onUpdate}
+          onChange={(onUpdate) => set({ onUpdate })}
+        />
+        <RadioGroup
+          name='prompt'
+          legend={<code>prompt</code>}
+          choices={promptChoices}
           value={settings.prompt}
-          onChange={(e) => set({ prompt: e.target.value as PromptChoice })}
-        >
-          <option value='dialog'>Built-in dialog</option>
-          <option value='banner'>Custom banner component</option>
-          <option value='none'>None</option>
-        </select>
-      </label>
-      <label className='check'>
-        <input
-          type='checkbox'
-          checked={settings.promptOnError}
-          disabled={promptOff}
-          onChange={(e) => set({ promptOnError: e.target.checked })}
+          disabled={!promptInUse(settings)}
+          onChange={(prompt) => set({ prompt })}
         />
-        <code>promptOnError</code>
-      </label>
-      <label className='check'>
-        <input
-          type='checkbox'
-          checked={settings.auto}
-          onChange={(e) => set({ auto: e.target.checked })}
+      </div>
+      <div className='toggles'>
+        <Toggle
+          name='promptOnChunkError'
+          hint='ask when a lazy chunk fails to load'
+          checked={settings.promptOnChunkError}
+          onChange={(promptOnChunkError) => set({ promptOnChunkError })}
         />
-        <code>auto</code>
-        <small>reload as soon as a poll finds a new build</small>
-      </label>
-      <label className='check'>
-        <input
-          type='checkbox'
+        <Toggle
+          name='reloadWhenHidden'
+          hint='reload quietly when you switch tabs'
           checked={settings.reloadWhenHidden}
-          onChange={(e) => set({ reloadWhenHidden: e.target.checked })}
+          onChange={(reloadWhenHidden) => set({ reloadWhenHidden })}
         />
-        <code>reloadWhenHidden</code>
-        <small>reload quietly when you switch to another tab</small>
-      </label>
-      <label className='check'>
-        <input
-          type='checkbox'
+        <Toggle
+          name='blocking={false}'
+          hint='show the app before the first check'
           checked={!settings.blocking}
-          onChange={(e) => set({ blocking: !e.target.checked })}
+          onChange={(nonBlocking) => set({ blocking: !nonBlocking })}
         />
-        <code>blocking={'{false}'}</code>
-        <small>show the app before the first check answers</small>
-      </label>
-    </fieldset>
+      </div>
+    </div>
   );
 }
 
@@ -288,14 +354,13 @@ function snippet(settings: Settings) {
   const props = [
     "filename='/react-clear-browser-cache/meta.json'",
     settings.duration ? `duration={${settings.duration}}` : null,
-    settings.auto ? 'auto' : null,
+    settings.onUpdate === 'prompt' ? null : `onUpdate='${settings.onUpdate}'`,
+    promptInUse(settings)
+      ? `prompt={${settings.prompt === 'dialog' ? 'UpdateDialog' : 'Banner'}}`
+      : null,
+    settings.promptOnChunkError ? 'promptOnChunkError' : null,
     settings.reloadWhenHidden ? 'reloadWhenHidden' : null,
-    settings.blocking ? null : 'blocking={false}',
-    settings.prompt === 'dialog' ? 'updatePrompt={UpdatePrompt}' : null,
-    settings.prompt === 'banner' ? 'updatePrompt={MyBanner}' : null,
-    settings.prompt !== 'none' && settings.promptOnError
-      ? 'promptOnError'
-      : null
+    settings.blocking ? null : 'blocking={false}'
   ].filter(Boolean);
 
   return `<ClearBrowserCacheBoundary${props.map((p) => `\n  ${p}`).join('')}
@@ -339,20 +404,29 @@ export default function Demo() {
     writeSettings(next);
   };
 
+  const stale = deployed !== runningVersion;
+
   return (
     <div className='page'>
       <header className='hero'>
+        <p className='eyebrow'>Live demo · deploys simulated in your browser</p>
         <h1>react-clear-browser-cache</h1>
-        <p>
+        <p className='lede'>
           Users keep old tabs open. When you ship, their page still runs the
           last build and its lazy chunks are gone from the server. This boundary
           notices, empties Cache Storage and reloads, or asks first.
         </p>
         <nav>
-          <a href='https://github.com/devmaxxx/react-clear-browser-cache'>
+          <a
+            className='pill'
+            href='https://github.com/devmaxxx/react-clear-browser-cache'
+          >
             GitHub
           </a>
-          <a href='https://www.npmjs.com/package/react-clear-browser-cache'>
+          <a
+            className='pill'
+            href='https://www.npmjs.com/package/react-clear-browser-cache'
+          >
             npm
           </a>
         </nav>
@@ -360,25 +434,39 @@ export default function Demo() {
 
       <ol className='steps'>
         <li>
-          Press <strong>Deploy new version</strong>. The server now has a new
-          build; this tab still runs {runningVersion}.
+          <strong>Deploy</strong> a new version. The server moves on; this tab
+          still runs {runningVersion}.
         </li>
         <li>
-          Wait for the next poll: the update prompt appears. Or open the reports
-          first: their chunk is gone, so loading them fails.
+          <strong>Wait</strong> for the next poll, or open the reports: their
+          chunk is gone, so loading them fails.
         </li>
         <li>
-          Reload from the prompt and watch the log: Cache Storage is cleared and
-          the new version stored. Open a second tab to see deploys reach it.
+          <strong>Reload</strong> from the prompt and watch the log. Open a
+          second tab to see deploys reach it too.
         </li>
       </ol>
 
       <div className='grid'>
         <section className='card' aria-labelledby='server-title'>
           <h2 id='server-title'>Server</h2>
-          <p className='big'>
-            Deployed build <strong data-testid='deployed'>{deployed}</strong>
-          </p>
+          <div className='versions'>
+            <div>
+              <span>Deployed</span>
+              <strong data-testid='deployed' className='chip accent'>
+                {deployed}
+              </strong>
+            </div>
+            <span className='arrow' aria-hidden='true'>
+              →
+            </span>
+            <div>
+              <span>This tab runs</span>
+              <strong className={`chip ${stale ? 'warn' : 'ok'}`}>
+                {runningVersion}
+              </strong>
+            </div>
+          </div>
           <div className='row'>
             <button type='button' className='primary' onClick={deploy}>
               Deploy new version
@@ -387,14 +475,6 @@ export default function Demo() {
               Reset demo
             </button>
           </div>
-          <Settings settings={settings} onChange={change} />
-          <pre className='snippet'>
-            <code>{snippet(settings)}</code>
-          </pre>
-          <p className='note'>
-            Polling pauses while this tab is in the background. When it gets
-            focus back after a whole interval, it checks at once.
-          </p>
         </section>
 
         <section className='card' aria-labelledby='app-title'>
@@ -402,10 +482,12 @@ export default function Demo() {
           <AppErrorBoundary>
             <ClearBrowserCacheBoundary
               fallback={<p className='fallback'>Checking for a new build…</p>}
-              auto={settings.auto}
               duration={settings.duration || undefined}
-              updatePrompt={prompts[settings.prompt]}
-              promptOnError={settings.promptOnError}
+              onUpdate={settings.onUpdate}
+              prompt={
+                promptInUse(settings) ? prompts[settings.prompt] : undefined
+              }
+              promptOnChunkError={settings.promptOnChunkError}
               reloadWhenHidden={settings.reloadWhenHidden}
               blocking={settings.blocking}
               filename={`${import.meta.env.BASE_URL}meta.json`}
@@ -418,6 +500,22 @@ export default function Demo() {
         </section>
 
         <Log />
+
+        <section className='card props-card' aria-labelledby='props-title'>
+          <h2 id='props-title'>Boundary props</h2>
+          <div className='props-body'>
+            <Settings settings={settings} onChange={change} />
+            <div>
+              <pre className='snippet'>
+                <code>{snippet(settings)}</code>
+              </pre>
+              <p className='note'>
+                Polling pauses while this tab is in the background. When it gets
+                focus back after a whole interval, it checks at once.
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

@@ -32,14 +32,14 @@ describe('lazyRetry', () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
-  it('makes `retries` extra attempts, then rejects with the last error', async () => {
+  it('makes `attempts` calls in all, then rejects with the last error', async () => {
     const fn = vi
       .fn()
       .mockRejectedValueOnce(new Error('1'))
       .mockRejectedValueOnce(new Error('2'))
       .mockRejectedValueOnce(new Error('3'));
 
-    const result = lazyRetry(fn, 2, 100);
+    const result = lazyRetry(fn, 3, 100);
     const assertion = expect(result).rejects.toThrow('3');
 
     await vi.advanceTimersByTimeAsync(200);
@@ -47,10 +47,22 @@ describe('lazyRetry', () => {
     expect(fn).toHaveBeenCalledTimes(3);
   });
 
-  it('rejects at once when no retries are allowed', async () => {
+  it('makes two attempts by default, as 0.x did', async () => {
     const fn = vi.fn().mockRejectedValue(new Error('gone'));
 
-    await expect(lazyRetry(fn, 0)).rejects.toThrow('gone');
+    const assertion = expect(lazyRetry(fn, undefined, 100)).rejects.toThrow(
+      'gone'
+    );
+
+    await vi.advanceTimersByTimeAsync(100);
+    await assertion;
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([0, 1])('makes a single attempt for %i', async (attempts) => {
+    const fn = vi.fn().mockRejectedValue(new Error('gone'));
+
+    await expect(lazyRetry(fn, attempts)).rejects.toThrow('gone');
     expect(fn).toHaveBeenCalledTimes(1);
   });
 });

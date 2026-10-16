@@ -21,6 +21,9 @@ export const defaultErrorCheckers: ClearBrowserCacheErrorChecker[] = [
   // webpack: numeric ids in v4, named ids in v5; mini-css-extract-plugin
   // raises its CSS variant under the same name
   createErrorChecker('ChunkLoadError', /Loading (?:CSS )?chunk \S+ failed/),
+  // Turbopack (Next.js): a plain Error in older releases, ChunkLoadError later
+  createErrorChecker('ChunkLoadError', /Failed to load chunk \S+/),
+  createErrorChecker('Error', /Failed to load chunk \S+/),
   // older mini-css-extract-plugin releases used the generic name
   createErrorChecker('Error', /Loading CSS chunk \S+ failed/),
   // Vite's modulepreload helper

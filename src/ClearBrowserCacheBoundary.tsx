@@ -5,11 +5,17 @@ import {
   defaultErrorCheckers,
   isCacheError
 } from './errorCheckers';
-import type { UpdatePromptProps } from './UpdatePrompt';
+import type { UpdatePromptProps } from './updatePrompt';
 
 export type ClearBrowserCacheStorage = {
   get: (key: string) => string | null;
   set: (key: string, value: string) => void;
+};
+
+/** @deprecated Unused since 1.0; kept so 0.x imports still compile. */
+export type ClearBrowserCacheAppVersionStorage = {
+  get: () => string;
+  set: (version: string) => void;
 };
 
 export type ClearBrowserCacheDebugFunc = (params: {
@@ -25,7 +31,17 @@ export type ClearBrowserCacheBoundaryState = {
   disabled: boolean;
 };
 
+/**
+ * What happens when a check finds a newer build while the app is on screen:
+ * `prompt` shows `prompt`, `reload` reloads at once, `flag` only sets
+ * `isLatestVersion` to false and leaves the rest to you.
+ */
+export type ClearBrowserCacheUpdateMode = 'prompt' | 'reload' | 'flag';
+
 export type ClearBrowserCacheBoundaryProps = React.PropsWithChildren<{
+  /** Defaults to `prompt` when a `prompt` is given, `flag` otherwise. */
+  onUpdate?: ClearBrowserCacheUpdateMode;
+  /** @deprecated Use `onUpdate="reload"`. */
   auto?: boolean;
   storageKey?: string;
   filename?: string;
@@ -35,24 +51,24 @@ export type ClearBrowserCacheBoundaryProps = React.PropsWithChildren<{
   debug?: ClearBrowserCacheDebugFunc;
   errorCheckers?: ClearBrowserCacheErrorChecker[];
   /**
-   * Shown when a newer build is found and the page is not reloaded on its own.
-   * An element, or a component that receives `UpdatePromptProps`.
+   * Asks the user to reload. An element, or a component that receives
+   * `UpdatePromptProps`.
    */
-  updatePrompt?: React.ReactNode | React.ComponentType<UpdatePromptProps>;
+  prompt?: React.ReactNode | React.ComponentType<UpdatePromptProps>;
   /**
-   * When a stale-build error hits, show `updatePrompt` over the fallback
-   * instead of reloading straight away.
+   * When a chunk of the old build fails to load, show `prompt` over the
+   * fallback instead of reloading straight away.
    */
-  promptOnError?: boolean;
+  promptOnChunkError?: boolean;
   /**
    * Reload into a newer build as soon as the tab goes to the background,
    * where the user cannot see it happen.
    */
   reloadWhenHidden?: boolean;
   /**
-   * Asked before every reload the user did not start (`auto`,
-   * `reloadWhenHidden`); return false to keep the page, e.g. while a form has
-   * unsaved changes.
+   * Asked before every reload the user did not start (`onUpdate="reload"`,
+   * `reloadWhenHidden`, and the check on mount with `blocking={false}`);
+   * return false to keep the page, e.g. while a form has unsaved changes.
    */
   canReload?: () => boolean;
   /**
@@ -77,6 +93,10 @@ type State = ClearBrowserCacheBoundaryState & {
 };
 
 type CheckResult = 'reloading' | 'outdated' | 'current' | 'failed';
+
+// `guarded` reloads only if `canReload` agrees; `unattended` follows
+// `onUpdate` and `reloadWhenHidden`.
+type ReloadPolicy = 'always' | 'never' | 'guarded' | 'unattended';
 
 const unknownVersion = 'latest';
 
@@ -134,29 +154,23 @@ export class ClearBrowserCacheBoundary extends React.Component<
 > {
   // Version whose assets the browser currently holds; null before the first
   // successful check on this device.
-  appVersion: string | null;
+  appVersion: string | null = null;
   checkInterval: ReturnType<typeof setInterval> | null = null;
   lastCheckAt = 0;
+  storageRead = false;
+  storageEnabled = true;
   unmounted = false;
 
-  constructor(props: ClearBrowserCacheBoundaryProps) {
-    super(props);
-
-    const { version, disabled } = readStoredVersion(
-      this.storage,
-      this.storageKey
-    );
-
-    this.appVersion = version;
-    this.state = {
-      loading: !disabled,
-      latestVersion: version ?? unknownVersion,
-      disabled,
-      isLatestVersion: true,
-      caughtError: null,
-      dismissedVersion: null
-    };
-  }
+  // Storage is read after mount, not here: the server has none, and the first
+  // client render has to match the server's HTML to hydrate.
+  state: State = {
+    loading: true,
+    latestVersion: unknownVersion,
+    disabled: false,
+    isLatestVersion: true,
+    caughtError: null,
+    dismissedVersion: null
+  };
 
   static getDerivedStateFromError(error: unknown): Partial<State> {
     return { caughtError: { error, rethrow: false } };
@@ -182,17 +196,45 @@ export class ClearBrowserCacheBoundary extends React.Component<
     return url.href;
   }
 
+  // Returns whether storage works. Read once: StrictMode remounts the same
+  // instance, and a second read would undo the first check's state. The answer
+  // is kept in a field because `setState` has not landed yet when
+  // `componentDidCatch` runs in the same commit as the first mount.
+  readStorage() {
+    if (!this.storageRead) {
+      this.storageRead = true;
+
+      const { version, disabled } = readStoredVersion(
+        this.storage,
+        this.storageKey
+      );
+
+      this.appVersion = version;
+      this.storageEnabled = !disabled;
+      this.setState({
+        loading: !disabled,
+        latestVersion: version ?? unknownVersion,
+        disabled
+      });
+    }
+
+    return this.storageEnabled;
+  }
+
   componentDidMount() {
     // StrictMode unmounts and remounts the same instance in development.
     this.unmounted = false;
+    const enabled = this.readStorage();
     window.addEventListener('focus', this.handleFocus);
     window.addEventListener('blur', this.stopVersionCheck);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
 
-    // Nothing has been shown yet, so a stale build is reloaded on mount even
-    // without `auto`.
-    if (!this.state.disabled) {
-      this.checkVersion({ auto: true }).then(() => {
+    // A blocking mount has shown nothing yet, so a stale build is reloaded
+    // whatever `onUpdate` says. A non-blocking one is already interactive.
+    if (enabled) {
+      const reload = (this.props.blocking ?? true) ? 'always' : 'guarded';
+
+      this.checkVersion({ reload }).then(() => {
         if (!this.unmounted && document.hasFocus()) {
           this.startVersionCheck();
         }
@@ -227,15 +269,16 @@ export class ClearBrowserCacheBoundary extends React.Component<
       this.props.errorCheckers ?? []
     );
 
-    if (this.state.disabled || !isCacheError(error, errorCheckers)) {
+    // A child of a non-blocking boundary can fail before the boundary mounts.
+    if (!this.readStorage() || !isCacheError(error, errorCheckers)) {
       this.rethrow(error);
       return;
     }
 
-    const { promptOnError, updatePrompt } = this.props;
-    const prompt = Boolean(promptOnError) && updatePrompt != null;
+    const { promptOnChunkError, prompt } = this.props;
+    const ask = Boolean(promptOnChunkError) && prompt != null;
 
-    this.checkVersion({ auto: !prompt }).then((result) => {
+    this.checkVersion({ reload: ask ? 'never' : 'always' }).then((result) => {
       this.debug(error, errorInfo);
 
       // 'outdated' only comes back with the prompt on, which now shows over
@@ -297,15 +340,23 @@ export class ClearBrowserCacheBoundary extends React.Component<
     const { loading, isLatestVersion, caughtError, disabled } = this.state;
 
     if (
-      document.visibilityState === 'hidden' &&
-      this.props.reloadWhenHidden &&
-      !disabled &&
-      !loading &&
-      !isLatestVersion &&
-      !caughtError &&
-      this.reloadAllowed()
+      document.visibilityState !== 'hidden' ||
+      !this.props.reloadWhenHidden ||
+      disabled ||
+      loading ||
+      caughtError
     ) {
-      this.clearCacheAndReload();
+      return;
+    }
+
+    if (!isLatestVersion) {
+      if (this.reloadAllowed()) {
+        this.clearCacheAndReload();
+      }
+    } else if (this.props.duration) {
+      // Polling stopped on blur, so a deploy since the last poll is not known
+      // yet; checking now reloads into it while the tab is still hidden.
+      this.checkVersion();
     }
   };
 
@@ -385,20 +436,44 @@ export class ClearBrowserCacheBoundary extends React.Component<
     }
   }
 
+  get updateMode(): ClearBrowserCacheUpdateMode {
+    const { onUpdate, auto, prompt } = this.props;
+
+    if (onUpdate) {
+      return onUpdate;
+    }
+
+    if (auto) {
+      return 'reload';
+    }
+
+    return prompt != null ? 'prompt' : 'flag';
+  }
+
   // The guard is asked only once a newer build is known, so it sees the page
   // as it is at reload time and is not called on every poll.
-  unattendedReloadAllowed() {
-    const { auto, reloadWhenHidden } = this.props;
-    const wanted =
-      Boolean(auto) ||
-      (Boolean(reloadWhenHidden) && document.visibilityState === 'hidden');
+  shouldReload(policy: ReloadPolicy) {
+    switch (policy) {
+      case 'always':
+        return true;
+      case 'never':
+        return false;
+      case 'guarded':
+        return this.reloadAllowed();
+      case 'unattended': {
+        const wanted =
+          this.updateMode === 'reload' ||
+          (Boolean(this.props.reloadWhenHidden) &&
+            document.visibilityState === 'hidden');
 
-    return wanted && this.reloadAllowed();
+        return wanted && this.reloadAllowed();
+      }
+    }
   }
 
   checkVersion = async ({
-    auto
-  }: { auto?: boolean } = {}): Promise<CheckResult> => {
+    reload = 'unattended'
+  }: { reload?: ReloadPolicy } = {}): Promise<CheckResult> => {
     this.lastCheckAt = Date.now();
 
     try {
@@ -411,7 +486,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
 
       const isLatestVersion = latestVersion === this.appVersion;
 
-      if (!isLatestVersion && (auto ?? this.unattendedReloadAllowed())) {
+      if (!isLatestVersion && this.shouldReload(reload)) {
         await this.clearCacheAndReload(latestVersion);
         return 'reloading';
       }
@@ -444,7 +519,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
   clearCacheAndReloadFromContext = () => this.clearCacheAndReload();
 
   renderUpdatePrompt() {
-    const { updatePrompt } = this.props;
+    const { prompt } = this.props;
     const {
       caughtError,
       loading,
@@ -455,15 +530,19 @@ export class ClearBrowserCacheBoundary extends React.Component<
     const reason = caughtError ? 'error' : 'poll';
     const dismissed = reason === 'poll' && latestVersion === dismissedVersion;
 
-    if (updatePrompt == null || loading || isLatestVersion || dismissed) {
+    // `reload` mode lands here only when `canReload` held the reload back,
+    // so the user is asked instead.
+    const silent = reason === 'poll' && this.updateMode === 'flag';
+
+    if (prompt == null || silent || loading || isLatestVersion || dismissed) {
       return null;
     }
 
-    if (!isComponentType(updatePrompt)) {
-      return updatePrompt;
+    if (!isComponentType(prompt)) {
+      return prompt;
     }
 
-    const Prompt = updatePrompt;
+    const Prompt = prompt;
 
     return (
       <Prompt

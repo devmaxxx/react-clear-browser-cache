@@ -2,12 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ClearBrowserCacheBoundary,
-  type ClearBrowserCacheDebugFunc,
-  UpdatePrompt
+  type ClearBrowserCacheDebugFunc
 } from 'react-clear-browser-cache';
 
 import App from './App';
 import ErrorBoundary from './ErrorBoundary';
+import { UpdateDialog } from './UpdateDialog';
 
 if (import.meta.env.VITE_DEMO === '1') {
   // The GitHub Pages build, which simulates deploys in the browser.
@@ -29,12 +29,12 @@ if (import.meta.env.VITE_DEMO === '1') {
       <ErrorBoundary>
         <ClearBrowserCacheBoundary
           fallback={<p>Checking for updates…</p>}
-          auto={params.get('auto') === '1'}
+          onUpdate={params.get('auto') === '1' ? 'reload' : undefined}
           duration={Number(params.get('duration')) || undefined}
           filename={`${import.meta.env.BASE_URL}meta.json`}
           debug={debug}
-          updatePrompt={params.get('prompt') === '1' ? UpdatePrompt : undefined}
-          promptOnError={params.get('promptOnError') === '1'}
+          prompt={params.get('prompt') === '1' ? UpdateDialog : undefined}
+          promptOnChunkError={params.get('promptOnChunkError') === '1'}
         >
           <App loads={loads} />
         </ClearBrowserCacheBoundary>

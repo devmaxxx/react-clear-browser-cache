@@ -14,6 +14,16 @@ describe('defaultErrorCheckers', () => {
   it.each([
     ['webpack 4 numeric chunk', 'ChunkLoadError', 'Loading chunk 3 failed.'],
     [
+      'Turbopack chunk',
+      'ChunkLoadError',
+      'Failed to load chunk /_next/static/chunks/app_reports_page.js from module 1234'
+    ],
+    [
+      'older Turbopack chunk',
+      'Error',
+      'Failed to load chunk static/chunks/app_reports_page.js'
+    ],
+    [
       'webpack 5 named chunk',
       'ChunkLoadError',
       'Loading chunk src_Component_tsx failed.\n(error: http://localhost/static/js/src_Component_tsx.chunk.js)'

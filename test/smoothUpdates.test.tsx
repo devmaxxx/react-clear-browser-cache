@@ -128,6 +128,23 @@ describe('reloadWhenHidden', () => {
     );
   });
 
+  it('checks once when the tab goes hidden, and reloads into a newer build', async () => {
+    mockFetch(
+      () => metaResponse('v1'),
+      () => metaResponse('v2')
+    );
+
+    renderBoundary({ duration: 60_000, reloadWhenHidden: true });
+    await screen.findByTestId('isLatestVersion');
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('v1');
+
+    setVisibility('hidden');
+
+    await waitFor(() =>
+      expect(window.localStorage.getItem(STORAGE_KEY)).toBe('v2')
+    );
+  });
+
   it('leaves a current build alone', async () => {
     mockFetch(() => metaResponse('v1'));
     const caches = { keys: vi.fn(async () => []), delete: vi.fn() };
@@ -165,7 +182,11 @@ describe('canReload', () => {
       () => metaResponse('v2')
     );
 
-    renderBoundary({ duration: 10, auto: true, canReload: () => false });
+    renderBoundary({
+      duration: 10,
+      onUpdate: 'reload',
+      canReload: () => false
+    });
     await waitUntilOutdated();
     await wait(30);
 
@@ -200,7 +221,7 @@ describe('canReload', () => {
 
     renderBoundary({
       duration: 10,
-      auto: true,
+      onUpdate: 'reload',
       debug,
       canReload: () => {
         throw new Error('guard failed');
@@ -218,7 +239,7 @@ describe('canReload', () => {
     mockFetch(() => metaResponse('v1'));
     const canReload = vi.fn(() => true);
 
-    renderBoundary({ duration: 10, auto: true, canReload });
+    renderBoundary({ duration: 10, onUpdate: 'reload', canReload });
     await screen.findByTestId('isLatestVersion');
     await wait(40);
 
@@ -232,7 +253,11 @@ describe('canReload', () => {
     );
     let dirty = true;
 
-    renderBoundary({ duration: 10, auto: true, canReload: () => !dirty });
+    renderBoundary({
+      duration: 10,
+      onUpdate: 'reload',
+      canReload: () => !dirty
+    });
     await waitUntilOutdated();
 
     dirty = false;
@@ -261,5 +286,75 @@ describe('blocking', () => {
     await waitFor(() =>
       expect(window.localStorage.getItem(STORAGE_KEY)).toBe('v2')
     );
+  });
+});
+
+describe('onUpdate', () => {
+  function Prompt() {
+    return <p role='status'>Update</p>;
+  }
+
+  it('defaults to asking when a prompt is given', async () => {
+    mockFetch(
+      () => metaResponse('v1'),
+      () => metaResponse('v2')
+    );
+
+    renderBoundary({ duration: 10, prompt: Prompt });
+
+    expect(await screen.findByRole('status')).toBeInTheDocument();
+  });
+
+  it('`flag` keeps the prompt hidden after a poll', async () => {
+    mockFetch(
+      () => metaResponse('v1'),
+      () => metaResponse('v2')
+    );
+
+    renderBoundary({ duration: 10, onUpdate: 'flag', prompt: Prompt });
+    await waitUntilOutdated();
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('`reload` asks instead when `canReload` holds the reload back', async () => {
+    mockFetch(
+      () => metaResponse('v1'),
+      () => metaResponse('v2')
+    );
+
+    renderBoundary({
+      duration: 10,
+      onUpdate: 'reload',
+      prompt: Prompt,
+      canReload: () => false
+    });
+
+    expect(await screen.findByRole('status')).toBeInTheDocument();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('v1');
+  });
+
+  it('keeps the deprecated `auto` working', async () => {
+    mockFetch(
+      () => metaResponse('v1'),
+      () => metaResponse('v2')
+    );
+
+    renderBoundary({ duration: 10, auto: true });
+
+    await waitFor(() =>
+      expect(window.localStorage.getItem(STORAGE_KEY)).toBe('v2')
+    );
+  });
+});
+
+describe('blocking={false} on mount', () => {
+  it('asks `canReload` before reloading a stale build', async () => {
+    mockFetch(() => metaResponse('v2'));
+
+    renderBoundary({ blocking: false, canReload: () => false });
+    await waitUntilOutdated();
+
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('v1');
   });
 });

@@ -204,11 +204,11 @@ test.describe('update prompt', () => {
     expect(await storedVersion(page)).toBe('v2');
   });
 
-  test('promptOnError asks before reloading when a chunk is gone', async ({
+  test('promptOnChunkError asks before reloading when a chunk is gone', async ({
     page
   }) => {
     const server = await deployServer(page, 'v1');
-    await page.goto('/?prompt=1&promptOnError=1');
+    await page.goto('/?prompt=1&promptOnChunkError=1');
     await expect(page.getByTestId('lazy')).toBeVisible();
 
     server.deploy('v1', 'v2');

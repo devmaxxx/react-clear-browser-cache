@@ -1,0 +1,123 @@
+/* Falls back to its own colors where the page defines no design tokens. */
+.update-dialog {
+  --dialog-accent: var(--accent, #2f6fde);
+  --dialog-accent-text: var(--accent-text, #fff);
+  --dialog-surface: var(--surface, #fff);
+  --dialog-text: var(--text, #1b1f24);
+  --dialog-muted: var(--muted, #5b6573);
+  --dialog-border: var(--border, #dfe3e8);
+  --dialog-soft: var(--code-bg, #eef1f5);
+
+  width: min(24rem, calc(100vw - 32px));
+  padding: 1.5rem;
+  border: 1px solid var(--dialog-border);
+  border-radius: 18px;
+  background: var(--dialog-surface);
+  color: var(--dialog-text);
+  box-shadow:
+    0 24px 60px rgb(16 24 40 / 0.22),
+    0 2px 6px rgb(16 24 40 / 0.08);
+  text-align: center;
+}
+
+.update-dialog[open] {
+  animation: update-dialog-in 0.18s ease-out;
+}
+
+.update-dialog::backdrop {
+  background: rgb(15 20 30 / 0.4);
+  backdrop-filter: blur(3px);
+}
+
+@keyframes update-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-dialog[open] {
+    animation: none;
+  }
+}
+
+.update-dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0 auto 0.9rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--dialog-accent) 12%, transparent);
+  color: var(--dialog-accent);
+}
+
+.update-dialog[data-reason='error'] .update-dialog-icon {
+  background: color-mix(in srgb, #d97706 14%, transparent);
+  color: #d97706;
+}
+
+/* Doubled class: the dialog renders wherever the boundary is, so it must beat
+   heading styles of the surrounding page. */
+.update-dialog.update-dialog h2 {
+  margin: 0 0 0.4rem;
+  color: var(--dialog-text);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.update-dialog p {
+  margin: 0;
+  color: var(--dialog-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.update-dialog-version {
+  margin-top: 0.75rem !important;
+  font-size: 0.8rem !important;
+}
+
+.update-dialog-version code {
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  background: var(--dialog-soft);
+  color: var(--dialog-text);
+}
+
+.update-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.update-dialog-actions button {
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--dialog-border);
+  border-radius: 10px;
+  background: var(--dialog-surface);
+  color: var(--dialog-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-dialog-actions button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.update-dialog-actions .update-dialog-primary {
+  border-color: var(--dialog-accent);
+  background: var(--dialog-accent);
+  color: var(--dialog-accent-text);
+}
+
+.update-dialog-actions button:focus-visible {
+  outline: 2px solid var(--dialog-accent);
+  outline-offset: 2px;
+}

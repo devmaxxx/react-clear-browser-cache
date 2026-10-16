@@ -31,12 +31,13 @@ Users leave tabs open for days. After you deploy, those tabs still run the old b
 
 - [Install](#install)
 - [Quick start](#quick-start)
+- [Next.js](#nextjs)
 - [How it works](#how-it-works)
 - [Update prompt](#update-prompt)
 - [API](#api)
 - [Recipes](#recipes)
 - [Troubleshooting](#troubleshooting)
-- [Migrating from 0.2](#migrating-from-02)
+- [Upgrading from 0.x](#upgrading-from-0x)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -70,21 +71,19 @@ It writes `{ "version": "<random uuid>" }` to `./public/meta.json`. Use `--desti
 
 ```tsx
 import { createRoot } from 'react-dom/client';
-import {
-  ClearBrowserCacheBoundary,
-  UpdatePrompt
-} from 'react-clear-browser-cache';
+import { ClearBrowserCacheBoundary } from 'react-clear-browser-cache';
 
 import App from './App';
 import ErrorBoundary from './ErrorBoundary';
+import { UpdateDialog } from './UpdateDialog'; // your prompt, see below
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
     <ClearBrowserCacheBoundary
       duration={60_000}
       fallback='Loading…'
-      updatePrompt={UpdatePrompt}
-      promptOnError
+      prompt={UpdateDialog}
+      promptOnChunkError
     >
       <App />
     </ClearBrowserCacheBoundary>
@@ -94,7 +93,7 @@ createRoot(document.getElementById('root')!).render(
 
 **3. Deploy.** Tabs with the old build now see a prompt within a minute, or as soon as a lazy chunk fails to load.
 
-Prefer no prompt at all? Set `reloadWhenHidden`: the tab reloads into the new build the moment the user switches away from it. Add `canReload` to hold off while a form has unsaved changes.
+Prefer no prompt at all? `onUpdate='reload'` reloads as soon as a poll finds the new build. Gentler: set `reloadWhenHidden`, and the tab reloads into the new build the moment the user switches away from it. Add `canReload` to hold off while a form has unsaved changes.
 
 ```tsx
 <ClearBrowserCacheBoundary
@@ -103,6 +102,56 @@ Prefer no prompt at all? Set `reloadWhenHidden`: the tab reloads into the new bu
   canReload={() => !formIsDirty()}
 >
 ```
+
+## Next.js
+
+The package is marked `'use client'`, and it reads `localStorage` only after mount, so it renders on the server and hydrates without a mismatch. Works with the App Router and the Pages Router, webpack or Turbopack; chunk errors from both are recognised.
+
+`generate-build-meta` writes `public/meta.json`, which Next.js serves from the site root, so the `prebuild` script from the quick start works as is. Wrap the app in a client component, because a server component cannot pass functions such as `canReload` to it:
+
+```tsx
+// app/providers.tsx
+'use client';
+
+import { ClearBrowserCacheBoundary } from 'react-clear-browser-cache';
+
+import { UpdateDialog } from './UpdateDialog';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <ClearBrowserCacheBoundary
+      duration={60_000}
+      prompt={UpdateDialog}
+      blocking={false}
+    >
+      {children}
+    </ClearBrowserCacheBoundary>
+  );
+}
+```
+
+```tsx
+// app/layout.tsx
+import { Providers } from './providers';
+
+export default function RootLayout({
+  children
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang='en'>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
+```
+
+- `blocking={false}` keeps the server-rendered page visible while the first check runs. With the default `blocking`, the server sends `fallback` and the page appears only after the check.
+- With a `basePath`, pass it in `filename`: `filename='/docs/meta.json'`.
+- Errors in a route segment are caught by the nearest `error.tsx` first, so a chunk error inside a page reaches the boundary only when that segment has no `error.tsx`. In one that does, call `clearCacheAndReload` from it for chunk errors.
 
 ## How it works
 
@@ -113,70 +162,47 @@ flowchart LR
   B -- same version --> C
   B -- newer version --> D[clear Cache Storage, reload]
   C --> E[poll every duration ms while focused]
-  E -- newer version --> F{auto?}
-  F -- yes --> D
-  F -- no --> G[show updatePrompt / isLatestVersion = false]
+  E -- newer version --> F{onUpdate}
+  F -- reload --> D
+  F -- prompt --> G[show prompt]
+  F -- flag --> L[isLatestVersion = false]
   C --> H[child throws a stale-chunk error]
   H --> I{newer version?}
-  I -- yes --> J[reload, or prompt with promptOnError]
+  I -- yes --> J[reload, or prompt with promptOnChunkError]
   I -- no --> K[rethrow to your ErrorBoundary]
 ```
 
 - On mount the boundary shows `fallback` and fetches the meta file; with `blocking={false}` it renders the app at once and checks in the background. A newer build found on mount always reloads straight away.
-- Polling runs every `duration` ms, only while the window has focus. A tab that gets focus back after a whole `duration` checks at once. When a check finds a newer build it reloads if `auto` is set; otherwise it shows `updatePrompt`, or just sets `isLatestVersion` to `false` and leaves the reload to you (`clearCacheAndReload`).
-- With `reloadWhenHidden`, a tab that knows about a newer build reloads as soon as it goes to the background. `canReload` is asked before this reload and before every `auto` reload; a reload the user clicks is never blocked.
-- When a child throws an error that looks like a stale build, the boundary checks the version: if a new build is out it reloads (or prompts, with `promptOnError`); otherwise the error goes on to your `ErrorBoundary`.
+- Polling runs every `duration` ms, only while the window has focus. A tab that gets focus back after a whole `duration` checks at once. When a check finds a newer build, `onUpdate` decides: `prompt` shows `prompt`, `reload` reloads at once, `flag` only sets `isLatestVersion` to `false` and leaves the reload to you (`clearCacheAndReload`). It defaults to `prompt` when a `prompt` is given and to `flag` otherwise.
+- With `reloadWhenHidden`, a tab that knows about a newer build reloads as soon as it goes to the background. It also covers a build found after the tab was hidden, and it reloads even when the user dismissed the prompt for that build. With `duration` set, going to the background also checks once, so a deploy since the last poll is caught too.
+- `canReload` is asked before every reload the user did not start: `onUpdate='reload'`, `reloadWhenHidden`, and the check on mount with `blocking={false}`. When it says no, the user is shown `prompt` instead. A reload the user clicks is never blocked.
+- When a child throws an error that looks like a stale build, the boundary checks the version: if a new build is out it reloads (or prompts, with `promptOnChunkError`); otherwise the error goes on to your `ErrorBoundary`.
 - The meta file is fetched with `cache: 'no-store'`. A file that is missing, has no `version`, or is answered with HTML by an SPA fallback is reported to `debug` and otherwise ignored; the app still renders.
 - If storage cannot be read (blocked cookies, private mode), the boundary disables itself and just renders the app.
 
 ## Update prompt
 
-The built-in `UpdatePrompt` is an unstyled native `<dialog>`: modal, focus on **Reload**, Escape or **Later** dismisses it, focus returns to where it was, and the buttons lock while the page reloads. A dismissed prompt stays hidden until a newer build appears.
-
-Change its text or class, or make it non-modal. Define the wrapper outside your component: a new function on every render remounts the prompt.
-
-```tsx
-import {
-  UpdatePrompt,
-  type UpdatePromptProps
-} from 'react-clear-browser-cache';
-
-function AppUpdatePrompt(props: UpdatePromptProps) {
-  return (
-    <UpdatePrompt
-      {...props}
-      className='update-dialog'
-      title='Update ready'
-      reloadLabel='Refresh'
-    />
-  );
-}
-
-<ClearBrowserCacheBoundary
-  duration={60_000}
-  promptOnError
-  updatePrompt={AppUpdatePrompt}
->
-  <App />
-</ClearBrowserCacheBoundary>;
-```
-
-Or bring your own component; it receives [`UpdatePromptProps`](#updatepromptprops):
+The library ships no prompt UI, so the prompt matches your design system. Pass a component; it receives [`UpdatePromptProps`](#updatepromptprops). Declare it at module level: a new function on every render remounts the prompt.
 
 ```tsx
 import type { UpdatePromptProps } from 'react-clear-browser-cache';
 
-function UpdateDialog({ reload, dismiss }: UpdatePromptProps) {
+export function UpdateDialog({ reason, reload, dismiss }: UpdatePromptProps) {
   return (
     <Modal open onClose={dismiss}>
-      A new version is available.
-      <Button onClick={reload}>Refresh</Button>
+      {reason === 'error'
+        ? 'Part of the app could not load. Reload to continue.'
+        : 'A new version is available.'}
+      <Button onClick={dismiss}>Later</Button>
+      <Button onClick={reload}>Reload</Button>
     </Modal>
   );
 }
 ```
 
-A plain element works too (`updatePrompt={<Banner />}`); it reads `clearCacheAndReload` and `dismissUpdate` from `useClearBrowserCache()`.
+A complete one to copy is the demo's [`UpdateDialog.tsx`](example/src/UpdateDialog.tsx) with its [CSS](example/src/UpdateDialog.css): a native modal `<dialog>` that focuses **Reload**, dismisses on Escape or **Later**, gives focus back when it closes, and locks its buttons while the page reloads. A dismissed prompt stays hidden until a newer build appears.
+
+A plain element works too (`prompt={<Banner />}`); it reads `clearCacheAndReload` and `dismissUpdate` from `useClearBrowserCache()`.
 
 ## API
 
@@ -184,21 +210,22 @@ A plain element works too (`updatePrompt={<Banner />}`); it reads `clearCacheAnd
 
 Error boundary and context provider. Place it inside your own error boundary: it only handles stale-build errors.
 
-| Prop               | Type                            | Default         | Description                                                                                                                           |
-| :----------------- | :------------------------------ | :-------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
-| `duration`         | `number`                        | —               | Poll interval in ms. Without it the version is checked on mount and on stale-chunk errors only.                                       |
-| `auto`             | `boolean`                       | `false`         | Reload as soon as a poll finds a newer build.                                                                                         |
-| `fallback`         | `ReactNode`                     | `null`          | Rendered while the first version check runs, e.g. a preloader.                                                                        |
-| `updatePrompt`     | element or component            | —               | Shown when a newer build is found and the page is not reloaded on its own. See [Update prompt](#update-prompt).                       |
-| `promptOnError`    | `boolean`                       | `false`         | On a stale-build error, show `updatePrompt` over `fallback` instead of reloading at once.                                             |
-| `reloadWhenHidden` | `boolean`                       | `false`         | Reload into a newer build as soon as the tab goes to the background.                                                                  |
-| `canReload`        | `() => boolean`                 | —               | Asked before reloads the user did not start (`auto`, `reloadWhenHidden`). Return `false` to keep the page.                            |
-| `blocking`         | `boolean`                       | `true`          | Show `fallback` until the first check answers. `false` renders the app at once.                                                       |
-| `filename`         | `string`                        | `'meta.json'`   | Meta file to fetch. A bare name is fetched from the site root; a path starting with `/`, `./` or `../`, or a full URL, is used as is. |
-| `storageKey`       | `string`                        | `'APP_VERSION'` | Key the current version is stored under.                                                                                              |
-| `storage`          | `{ get(key), set(key, value) }` | `localStorage`  | Where the version is kept, e.g. [store](https://www.npmjs.com/package/store).                                                         |
-| `errorCheckers`    | `((error) => boolean)[]`        | `[]`            | Extra checks for stale-build errors, added to the defaults. See [`createErrorChecker`](#createerrorcheckername-pattern).              |
-| `debug`            | `(params) => void`              | —               | Receives state changes and errors, for logging.                                                                                       |
+| Prop                 | Type                             | Default         | Description                                                                                                                           |
+| :------------------- | :------------------------------- | :-------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `duration`           | `number`                         | —               | Poll interval in ms. Without it the version is checked on mount and on stale-chunk errors only.                                       |
+| `onUpdate`           | `'prompt' \| 'reload' \| 'flag'` | see description | What a check that finds a newer build does. Defaults to `prompt` when `prompt` is given, `flag` otherwise.                            |
+| `auto`               | `boolean`                        | `false`         | Deprecated: same as `onUpdate='reload'`.                                                                                              |
+| `fallback`           | `ReactNode`                      | `null`          | Rendered while the first version check runs, e.g. a preloader.                                                                        |
+| `prompt`             | element or component             | —               | Asks the user to reload: your component, or an element. See [Update prompt](#update-prompt).                                          |
+| `promptOnChunkError` | `boolean`                        | `false`         | On a stale-build error, show `prompt` over `fallback` instead of reloading at once.                                                   |
+| `reloadWhenHidden`   | `boolean`                        | `false`         | Reload into a newer build as soon as the tab goes to the background.                                                                  |
+| `canReload`          | `() => boolean`                  | —               | Asked before reloads the user did not start. Return `false` to keep the page.                                                         |
+| `blocking`           | `boolean`                        | `true`          | Show `fallback` until the first check answers. `false` renders the app at once.                                                       |
+| `filename`           | `string`                         | `'meta.json'`   | Meta file to fetch. A bare name is fetched from the site root; a path starting with `/`, `./` or `../`, or a full URL, is used as is. |
+| `storageKey`         | `string`                         | `'APP_VERSION'` | Key the current version is stored under.                                                                                              |
+| `storage`            | `{ get(key), set(key, value) }`  | `localStorage`  | Where the version is kept, e.g. [store](https://www.npmjs.com/package/store).                                                         |
+| `errorCheckers`      | `((error) => boolean)[]`         | `[]`            | Extra checks for stale-build errors, added to the defaults. See [`createErrorChecker`](#createerrorcheckername-pattern).              |
+| `debug`              | `(params) => void`               | —               | Receives state changes and errors, for logging.                                                                                       |
 
 ### `useClearBrowserCache()` and `<ClearBrowserCache>`
 
@@ -231,10 +258,6 @@ function VersionBadge() {
 | `clearCacheAndReload` | `() => Promise<void>` | Clear Cache Storage, store the latest version and reload.                   |
 | `dismissUpdate`       | `() => void`          | Hide the update prompt until a newer build is found.                        |
 
-### `<UpdatePrompt>`
-
-The built-in dialog. Takes `UpdatePromptProps` plus `title`, `message`, `reloadLabel`, `dismissLabel`, `className` and `modal` (default `true`).
-
 ### `UpdatePromptProps`
 
 | Prop            | Type                  | Description                                                                                         |
@@ -244,9 +267,9 @@ The built-in dialog. Takes `UpdatePromptProps` plus `title`, `message`, `reloadL
 | `reload`        | `() => Promise<void>` | Clear Cache Storage and reload the page.                                                            |
 | `dismiss`       | `() => void`          | Hide until a newer build is found. For `reason: 'error'` the error goes on to your `ErrorBoundary`. |
 
-### `lazyRetry(fn, retries = 2, interval = 1000)`
+### `lazyRetry(fn, attempts = 2, interval = 1000)`
 
-Calls `fn`, and while it rejects calls it again up to `retries` more times, `interval` ms apart.
+Calls `fn` up to `attempts` times in all, `interval` ms apart, until it resolves; then rejects with the last error.
 
 ```tsx
 import { lazy } from 'react';
@@ -279,22 +302,27 @@ Recognised out of the box: webpack `ChunkLoadError` and CSS chunk errors, Vite C
 
 **Version from your CI instead of a random UUID.** Any JSON with a `version` string works, e.g. `echo "{\"version\":\"$GITHUB_SHA\"}" > public/meta.json`.
 
-**Reload on the next route change.** A route change replaces the screen anyway, so it is a quiet moment to switch builds:
+**Reload on the next route change.** A route change replaces the screen anyway, so it is a quiet moment to switch builds. `clearCacheAndReload` does not ask `canReload`, so check your own guard here:
 
 ```tsx
 function ReloadOnNavigate() {
   const { isLatestVersion, clearCacheAndReload } = useClearBrowserCache();
-  const location = useLocation(); // react-router
+  const { pathname } = useLocation(); // react-router
+  const previous = useRef(pathname);
 
   useEffect(() => {
-    if (!isLatestVersion) clearCacheAndReload();
-  }, [location.pathname]);
+    // Only a real route change counts, not the build turning stale.
+    if (pathname !== previous.current && !isLatestVersion && !formIsDirty()) {
+      clearCacheAndReload();
+    }
+    previous.current = pathname;
+  }, [pathname, isLatestVersion, clearCacheAndReload]);
 
   return null;
 }
 ```
 
-**Show the update somewhere other than a dialog.** Leave `updatePrompt` out and render a banner from `isLatestVersion` with the hook.
+**Show the update somewhere other than a dialog.** Leave `prompt` out and render a banner from `isLatestVersion` with the hook.
 
 ## Troubleshooting
 
@@ -319,12 +347,19 @@ That happens when the build has not changed — the boundary only recovers when 
 
 </details>
 
-## Migrating from 0.2
+## Upgrading from 0.x
 
-- React 18 or newer is required, and the package ships ESM and CommonJS builds with type declarations through `exports`.
-- `lazyRetry(fn, retries)` now makes `retries` extra attempts (the default is three attempts in total, it used to be two), and `retries = 0` no longer retries forever.
-- The stored version is only updated when the cache is actually cleared, so `isLatestVersion` stays `false` until the user reloads through `clearCacheAndReload`.
-- `storage` is typed as `{ get, set }`; the `@ts-ignore` the old type needed can go.
+Code written for 0.2 keeps working: the props, `useClearBrowserCache`, `<ClearBrowserCache>`, `createErrorChecker`, `lazyRetry` and the `generate-build-meta` CLI are unchanged, and `auto` still reloads (prefer `onUpdate='reload'`). What changed:
+
+- **React 18 or newer** is required (`peerDependencies`). React 16 and 17 users stay on 0.2.
+- **Package entry points** go through `exports` (ESM `.mjs`, CommonJS `.cjs`, types for both). Deep imports such as `react-clear-browser-cache/dist/index.js` no longer resolve; import from the package name.
+- **The stored version is saved only when the cache is actually cleared**, so `isLatestVersion` stays `false` until the user reloads through `clearCacheAndReload`. 0.2 saved it on every check and could report a stale tab as current.
+- **`lazyRetry(fn, 0)`** makes one attempt; 0.2 retried forever.
+- **`debug`** receives `error` typed as `unknown` (anything can be thrown) and always receives `state`.
+- **`storage`** is typed as `{ get, set }`; the `@ts-ignore` the old `Storage` type needed can go.
+- **Server rendering**: storage is read after mount, so the first render shows `fallback` (or the app with `blocking={false}`) on the server and the client alike.
+
+See [CHANGELOG.md](CHANGELOG.md) for everything new.
 
 ## Contributing
 

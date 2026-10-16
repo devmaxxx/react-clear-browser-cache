@@ -1,13 +1,6 @@
-import {
-  UpdatePrompt,
-  type UpdatePromptProps
-} from 'react-clear-browser-cache';
+import type { UpdatePromptProps } from 'react-clear-browser-cache';
 
-// Declared once at module level: a new function on every render would be a new
-// component type, and React would remount the prompt each time.
-export function DialogPrompt(props: UpdatePromptProps) {
-  return <UpdatePrompt {...props} className='dialog' />;
-}
+import { UpdateDialog } from '../UpdateDialog';
 
 export function BannerPrompt({
   latestVersion,
@@ -33,9 +26,8 @@ export function BannerPrompt({
 }
 
 export const prompts = {
-  dialog: DialogPrompt,
-  banner: BannerPrompt,
-  none: undefined
+  dialog: UpdateDialog,
+  banner: BannerPrompt
 };
 
 export type PromptChoice = keyof typeof prompts;
