@@ -203,11 +203,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
   }
 
   componentDidUpdate(prevProps: ClearBrowserCacheBoundaryProps) {
-    const { duration, auto } = this.props;
-    const pollingChanged =
-      duration !== prevProps.duration || auto !== prevProps.auto;
-
-    if (pollingChanged && document.hasFocus()) {
+    if (this.props.duration !== prevProps.duration && document.hasFocus()) {
       this.startVersionCheck();
     }
 
@@ -389,9 +385,20 @@ export class ClearBrowserCacheBoundary extends React.Component<
     }
   }
 
+  // The guard is asked only once a newer build is known, so it sees the page
+  // as it is at reload time and is not called on every poll.
+  unattendedReloadAllowed() {
+    const { auto, reloadWhenHidden } = this.props;
+    const wanted =
+      Boolean(auto) ||
+      (Boolean(reloadWhenHidden) && document.visibilityState === 'hidden');
+
+    return wanted && this.reloadAllowed();
+  }
+
   checkVersion = async ({
-    auto = (this.props.auto ?? false) && this.reloadAllowed()
-  } = {}): Promise<CheckResult> => {
+    auto
+  }: { auto?: boolean } = {}): Promise<CheckResult> => {
     this.lastCheckAt = Date.now();
 
     try {
@@ -404,7 +411,7 @@ export class ClearBrowserCacheBoundary extends React.Component<
 
       const isLatestVersion = latestVersion === this.appVersion;
 
-      if (!isLatestVersion && auto) {
+      if (!isLatestVersion && (auto ?? this.unattendedReloadAllowed())) {
         await this.clearCacheAndReload(latestVersion);
         return 'reloading';
       }

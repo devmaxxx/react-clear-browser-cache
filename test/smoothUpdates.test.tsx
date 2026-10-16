@@ -112,6 +112,22 @@ describe('reloadWhenHidden', () => {
     );
   });
 
+  it('reloads when a check finds a new build after the tab went hidden', async () => {
+    mockFetch(
+      () => metaResponse('v1'),
+      () => metaResponse('v2')
+    );
+
+    renderBoundary({ duration: 10, reloadWhenHidden: true });
+    await screen.findByTestId('isLatestVersion');
+    setVisibility('hidden');
+    fireEvent.focus(window);
+
+    await waitFor(() =>
+      expect(window.localStorage.getItem(STORAGE_KEY)).toBe('v2')
+    );
+  });
+
   it('leaves a current build alone', async () => {
     mockFetch(() => metaResponse('v1'));
     const caches = { keys: vi.fn(async () => []), delete: vi.fn() };
@@ -196,6 +212,17 @@ describe('canReload', () => {
     expect(debug).toHaveBeenCalledWith(
       expect.objectContaining({ error: new Error('guard failed') })
     );
+  });
+
+  it('does not ask the guard while the build is current', async () => {
+    mockFetch(() => metaResponse('v1'));
+    const canReload = vi.fn(() => true);
+
+    renderBoundary({ duration: 10, auto: true, canReload });
+    await screen.findByTestId('isLatestVersion');
+    await wait(40);
+
+    expect(canReload).not.toHaveBeenCalled();
   });
 
   it('reloads once the guard allows it', async () => {
