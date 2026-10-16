@@ -1,10 +1,18 @@
 {
   "name": "react-clear-browser-cache",
   "version": "1.0.0",
-  "author": "arenuzzz",
-  "description": "Library for clearing browser cache after react app updates",
+  "author": {
+    "name": "Maksym Synenko",
+    "url": "https://devmaxxx.github.io/"
+  },
+  "description": "Detect new deploys of a React app, clear Cache Storage and reload, or ask the user first. Recovers from missing lazy chunks.",
   "license": "MIT",
-  "repository": "devmaxxx/react-clear-browser-cache",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devmaxxx/react-clear-browser-cache.git"
+  },
+  "homepage": "https://devmaxxx.github.io/react-clear-browser-cache/",
+  "bugs": "https://github.com/devmaxxx/react-clear-browser-cache/issues",
   "type": "commonjs",
   "sideEffects": false,
   "main": "./dist/index.cjs",
@@ -38,7 +46,14 @@
     "browser cache",
     "clear cache",
     "refresh cache",
-    "react"
+    "react",
+    "cache-busting",
+    "chunk-load-error",
+    "deploy",
+    "reload",
+    "next.js",
+    "vite",
+    "webpack"
   ],
   "packageManager": "pnpm@10.23.0",
   "scripts": {
