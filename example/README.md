@@ -17,3 +17,11 @@ Query parameters configure the boundary, so one build covers every scenario:
 | `duration`        | Polling interval in ms.                             |
 | `prompt=1`        | Show the built-in `UpdatePrompt` dialog.            |
 | `promptOnError=1` | Prompt instead of reloading on a stale-chunk error. |
+
+## GitHub Pages demo
+
+`pnpm demo:dev` and `pnpm demo:build` set `VITE_DEMO=1`, which swaps the entry
+for `src/demo`: a playground with a **Deploy new version** button, live boundary
+props, the tab's state and an event log. A fetch shim stands in for the server,
+since Pages serves static files only. `e2e/demo.spec.ts` covers it under the
+same `/react-clear-browser-cache/` sub-path that Pages uses.

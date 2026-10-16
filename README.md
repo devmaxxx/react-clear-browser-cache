@@ -4,6 +4,8 @@
 
 [![NPM](https://img.shields.io/npm/v/react-clear-browser-cache.svg)](https://www.npmjs.com/package/react-clear-browser-cache) [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
 
+**[Live demo](https://devmaxxx.github.io/react-clear-browser-cache/)**: deploy a new version in one click and watch an open tab notice it, prompt, clear Cache Storage and reload.
+
 ## Install
 
 ```bash
@@ -235,7 +237,13 @@ pnpm install
 pnpm test          # lint, typecheck, unit tests, build, e2e
 pnpm test:unit     # Vitest
 pnpm test:e2e      # Playwright against the example app in Chromium, Firefox and WebKit
+pnpm demo:dev      # the GitHub Pages demo, with deploys simulated in the browser
 ```
+
+The demo is the example app built with `VITE_DEMO=1`. GitHub Pages serves static
+files only, so a fetch shim answers `meta.json` with a version kept in
+localStorage; the version check, cache clearing and reload are the library's own.
+`.github/workflows/pages.yml` publishes it on every push to `master`.
 
 ## License
 
