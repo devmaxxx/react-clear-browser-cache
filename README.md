@@ -375,6 +375,10 @@ pnpm demo:dev      # the GitHub Pages demo, with deploys simulated in the browse
 
 The demo is the example app built with `VITE_DEMO=1`. GitHub Pages serves static files only, so a fetch shim answers `meta.json` with a version kept in localStorage; the version check, cache clearing and reload are the library's own. `.github/workflows/pages.yml` publishes it on every push to `master`.
 
+### Releasing
+
+Bump `version` in `package.json`, add the `CHANGELOG.md` entry, merge, then publish a GitHub release tagged `v<version>`. `.github/workflows/release.yml` checks, builds and publishes it to npm with provenance through Trusted Publishing.
+
 ## License
 
 [MIT](LICENSE) © Maksym Synenko
