@@ -1,10 +1,10 @@
 {
   "name": "react-clear-browser-cache",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "author": "arenuzzz",
   "description": "Library for clearing browser cache after react app updates",
   "license": "MIT",
-  "repository": "arenuzzz/react-clear-browser-cache",
+  "repository": "devmaxxx/react-clear-browser-cache",
   "type": "commonjs",
   "sideEffects": false,
   "main": "./dist/index.cjs",
@@ -48,13 +48,15 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p example && tsc --noEmit -p e2e",
     "lint": "eslint . && prettier --check . && pnpm run lint:html",
     "lint:html": "html-validate example/index.html",
-    "test": "pnpm run lint && pnpm run build && pnpm run typecheck && pnpm run test:unit && pnpm run test:e2e",
+    "test": "pnpm run lint && pnpm run build && pnpm run typecheck && pnpm run test:unit && playwright test",
     "test:unit": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "pnpm run build && playwright test",
     "example:dev": "pnpm --filter react-clear-browser-cache-example dev",
     "example:build": "pnpm --filter react-clear-browser-cache-example build",
-    "deploy": "BASE_PATH=./ pnpm run example:build && gh-pages -d example/dist"
+    "demo:dev": "VITE_DEMO=1 pnpm run example:dev",
+    "demo:build": "VITE_DEMO=1 BASE_PATH=/react-clear-browser-cache/ pnpm --filter react-clear-browser-cache-example exec vite build --outDir dist-demo",
+    "demo:preview": "BASE_PATH=/react-clear-browser-cache/ pnpm --filter react-clear-browser-cache-example preview --outDir dist-demo"
   },
   "peerDependencies": {
     "react": ">=18.0.0"
@@ -71,7 +73,6 @@
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "gh-pages": "^6.3.0",
     "globals": "^17.13.0",
     "html-validate": "^11.16.2",
     "jsdom": "^30.1.3",
