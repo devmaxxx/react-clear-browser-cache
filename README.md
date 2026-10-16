@@ -377,4 +377,4 @@ The demo is the example app built with `VITE_DEMO=1`. GitHub Pages serves static
 
 ## License
 
-MIT © [arenuzzz](https://github.com/arenuzzz)
+[MIT](LICENSE) © Maksym Synenko
