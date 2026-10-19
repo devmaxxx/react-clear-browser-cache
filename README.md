@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/devmaxxx/react-clear-browser-cache/master/docs/logo-wordmark-dark.svg" />
-    <img alt="react-clear-browser-cache" src="https://raw.githubusercontent.com/devmaxxx/react-clear-browser-cache/master/docs/logo-wordmark-light.svg" width="352" />
+    <img alt="react-clear-browser-cache" src="https://raw.githubusercontent.com/devmaxxx/react-clear-browser-cache/master/docs/logo-wordmark-light.svg" width="444" />
   </picture>
 </p>
 
