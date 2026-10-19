@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/devmaxxx/react-clear-browser-cache/master/docs/logo-wordmark-dark.svg" />
+    <img alt="react-clear-browser-cache" src="https://raw.githubusercontent.com/devmaxxx/react-clear-browser-cache/master/docs/logo-wordmark-light.svg" width="444" />
+  </picture>
+</p>
+
 # react-clear-browser-cache
 
 > Keep open tabs on your latest React build: notice a deploy, clear Cache Storage and reload, or ask the user first.
@@ -14,7 +21,7 @@ Users leave tabs open for days. After you deploy, those tabs still run the old b
 **[▶ Try the live demo](https://devmaxxx.github.io/react-clear-browser-cache/)** — deploy a new version in one click and watch an open tab notice it, prompt, clear Cache Storage and reload.
 
 <a href="https://devmaxxx.github.io/react-clear-browser-cache/">
-  <img alt="The demo after a deploy: the update prompt asks to reload, the event log shows meta.json returning v2 while the tab still runs v1." src="docs/demo-light.png" width="800" />
+  <img alt="The demo after a deploy: the update prompt offers v2 and asks to reload, while the tab still runs v1." src="https://raw.githubusercontent.com/devmaxxx/react-clear-browser-cache/master/docs/demo-light.png" width="800" />
 </a>
 
 ## Features

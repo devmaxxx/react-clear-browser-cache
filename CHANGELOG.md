@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- The package ships its MIT `LICENSE`, and its author, homepage and issue links are up to date.
+- The README opens with the new logo, and its images load on npmjs.com too.
+- Releases are published from GitHub Actions through npm Trusted Publishing, with a provenance statement.
+
 ## 1.0.0
 
 ### Breaking changes
