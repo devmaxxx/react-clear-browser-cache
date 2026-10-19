@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-labelledby="title">
+  <title id="title">react-clear-browser-cache</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4c8bf5" />
+      <stop offset="1" stop-color="#2356c4" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)" />
+  <rect x="20" y="26" width="88" height="76" rx="12" fill="none" stroke="#fff" stroke-width="6" />
+  <path d="M20 46h88" stroke="#fff" stroke-width="6" />
+  <circle cx="33" cy="36" r="3.5" fill="#fff" />
+  <circle cx="44" cy="36" r="3.5" fill="#fff" />
+  <circle cx="55" cy="36" r="3.5" fill="#fff" />
+  <path d="M66.8 58.2A16 16 0 1 1 52.7 62.7" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" />
+  <path d="M60.1 55.3 46.1 59.9 56.4 70.1z" fill="#fff" stroke="#fff" stroke-width="2" stroke-linejoin="round" />
+</svg>

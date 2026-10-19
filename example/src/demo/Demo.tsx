@@ -410,7 +410,16 @@ export default function Demo() {
     <div className='page'>
       <header className='hero'>
         <p className='eyebrow'>Live demo · deploys simulated in your browser</p>
-        <h1>react-clear-browser-cache</h1>
+        <h1>
+          <img
+            className='logo'
+            src={`${import.meta.env.BASE_URL}favicon.svg`}
+            alt=''
+            width={40}
+            height={40}
+          />
+          react-clear-browser-cache
+        </h1>
         <p className='lede'>
           Users keep old tabs open. When you ship, their page still runs the
           last build and its lazy chunks are gone from the server. This boundary
